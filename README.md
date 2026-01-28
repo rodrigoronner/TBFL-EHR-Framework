@@ -54,7 +54,7 @@ pip install -r requirements.txt
 Step 1: Data Acquisition (MIMIC-IV)
 Due to the PhysioNet Data Use Agreement (DUA), raw patient data cannot be shared in this repository.
 
-Obtain credentialed access to MIMIC-IV v2.2 at PhysioNet.
+Obtain credentialed access to MIMIC-IV v3.1 at PhysioNet.
 
 Perform cohort selection and feature extraction as described in the paper methodology.
 

@@ -4,7 +4,7 @@
 [![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![Hardhat](https://img.shields.io/badge/built%20with-Hardhat-FFDB1C.svg)](https://hardhat.org/)
 
-This repository contains the official implementation of the paper **"Trustworthy Blockchain-based Federated Learning for Electronic Health Records: Securing Participant Identity with Decentralized Identifiers and Verifiable Credentials"**, submitted to *ACM Distributed Ledger Technologies: Research and Practice*.
+This repository contains the official implementation of the paper **"Trustworthy Blockchain-based Federated Learning for Electronic Health Records: Securing Participant Identity with Decentralized Identifiers and Verifiable Credentials"**.
 
 ## 📄 Abstract
 
@@ -24,15 +24,10 @@ The system consists of three main layers:
 * Node.js & NPM
 * Access to MIMIC-IV Database (Credentialed Access required via PhysioNet)
 
-### 1. Clone the repository
-```bash
-git clone [https://github.com/SEU_USUARIO/TBFL-EHR-Framework.git](https://github.com/SEU_USUARIO/TBFL-EHR-Framework.git)
-cd TBFL-EHR-Framework
-
-## 🚀 Installation and Configuration
+### 🚀 Installation and Configuration
 1. Clone the Repository
-Bash
-git clone [https://github.com/YOUR_USERNAME/TBFL-EHR-Framework.git](https://github.com/YOUR_USERNAME/TBFL-EHR-Framework.git)
+
+git clone [https://github.com/rodrigoronner/TBFL-EHR-Framework.git]
 cd TBFL-EHR-Framework
 
 2. Configure Blockchain Environment (Hardhat)
@@ -63,7 +58,7 @@ Obtain credentialed access to MIMIC-IV v2.2 at PhysioNet.
 
 Perform cohort selection and feature extraction as described in the paper methodology.
 
-Save the resulting dataset as mortalidade_features.csv.
+Save the resulting dataset as mortalidade_features.csv. The dataset is available in the data directory.
 
 Move the file into the data/ directory.
 

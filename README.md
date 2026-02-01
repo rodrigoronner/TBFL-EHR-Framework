@@ -167,25 +167,26 @@ python scripts/preprocess_mimic.py
 
 ## 🧪 Experimental Replication Guide
 
-### Step 1: Prepare MIMIC-IV Dataset
+### 4. Database Setup (MIMIC-IV)
 
-⚠️ **Data Privacy Notice**: Raw patient data cannot be distributed due to PhysioNet DUA.
+**The preprocessed dataset is included in the repository:**
 
-**Required Actions**:
-
-1. Access MIMIC-IV database (version 2.2 or 3.1)
-2. Execute SQL cohort selection query (see `sql/cohort_selection.sql`)
-3. Apply inclusion criteria:
-   - Adult patients (age ≥ 18 years)
-   - First admission only (prevent data leakage)
-   - Non-null mortality outcome (`hospital_expire_flag`)
-4. Save as `data/mortalidade_features.csv`
-
-**Validation**:
 ```bash
-# Verify dataset structure
-python scripts/validate_dataset.py
-# Expected output: N=546,028 admissions, balanced classes after SMOTETomek
+# Extract the provided dataset
+cd data/
+unzip mortalidade_features.csv.zip
+cd ..
+```
+
+This creates `mortalidade_features.csv`, which is automatically loaded by the main simulation script.
+
+**Optional - For reproducing preprocessing from raw MIMIC-IV:**
+
+If you have PhysioNet access and want to regenerate the dataset from scratch:
+
+```bash
+# Follow MIMIC-IV documentation: https://mimic.mit.edu/docs/gettingstarted/local/
+# The SQL logic for cohort selection is embedded in src/main_tbfl_simulation.py
 ```
 
 ### Step 2: Launch Local Blockchain Node

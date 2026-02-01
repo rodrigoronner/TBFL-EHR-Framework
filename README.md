@@ -148,26 +148,10 @@ pip install -r requirements.txt
 - `imbalanced-learn>=0.9.0`: SMOTETomek implementation
 - `psycopg2-binary>=2.9.0`: PostgreSQL connector
 
-### 4. Database Setup (MIMIC-IV)
-
-After obtaining PhysioNet access:
-
-```bash
-# Option A: Direct PostgreSQL import (recommended for large datasets)
-# Follow MIMIC-IV documentation: https://mimic.mit.edu/docs/gettingstarted/local/
-
-# Option B: Use the provided preprocessing script
-# Place your raw MIMIC-IV files in data/raw/
-python scripts/preprocess_mimic.py
-```
-
-**Expected Output**: `data/mortalidade_features.csv` (cohort-filtered dataset)
-
----
 
 ## 🧪 Experimental Replication Guide
 
-### 4. Database Setup (MIMIC-IV)
+### Step 1. Database Setup (MIMIC-IV)
 
 **The preprocessed dataset is included in the repository:**
 

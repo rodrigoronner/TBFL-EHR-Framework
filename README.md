@@ -173,7 +173,7 @@ python scripts/preprocess_mimic.py
 
 **Required Actions**:
 
-1. Access MIMIC-IV database 
+1. Access MIMIC-IV database (version 2.2 or 3.1)
 2. Execute SQL cohort selection query (see `sql/cohort_selection.sql`)
 3. Apply inclusion criteria:
    - Adult patients (age ≥ 18 years)
@@ -246,27 +246,26 @@ python src/main_tbfl_simulation.py
 [Round 1/100] Hospital B - Blockchain Verification... ✓ (Gas: 45,187)
 [Round 1/100] Hospital C - Local Training... ✓ (Loss: 0.305, Acc: 0.859)
 [Round 1/100] Hospital C - Blockchain Verification... ✓ (Gas: 45,209)
-[Round 1/100] Server - Secure Aggregation... ✓
+[Round 1/100] Global Aggregation... ✓
 [Round 1/100] Global Model - Loss: 0.305, Acc: 0.859, AUC: 0.891
 ...
 [Round 100/100] Global Model - Loss: 0.272, Acc: 0.881, AUC: 0.954
-Simulation Complete! Results saved to results/metrics_100rounds.csv
+Simulation Complete! Results logged in console output.
 ```
 
 ### Step 5: Analyze Results
 
-Generated outputs in `results/` directory:
+The simulation outputs performance metrics directly to the console for each round:
+- **Per-round metrics**: Loss, Accuracy, AUC-ROC
+- **Blockchain metrics**: Gas consumption, transaction confirmation time
+- **Security validation**: Authorization checks, Sybil attack prevention
 
-- `metrics_100rounds.csv`: Per-round performance metrics
-- `convergence_plot.png`: Loss/accuracy evolution
-- `confusion_matrix.png`: Final model classification results
-- `gas_analysis.csv`: Blockchain cost breakdown
-
-**Reproduce Paper Figures**:
-```bash
-python scripts/generate_figures.py
-# Outputs: Figure 1-6 from paper methodology
-```
+**Expected Final Results (Round 100)**:
+- Global Accuracy: ~88.1%
+- Global AUC-ROC: ~0.954
+- Global Recall: ~0.890
+- Average Gas per round: ~45,200
+- Blockchain overhead: <0.12%
 
 ---
 
@@ -308,38 +307,19 @@ python scripts/generate_figures.py
 TBFL-EHR-Framework/
 │
 ├── contracts/                 # Ethereum Smart Contracts
-│   ├── FLRegistry.sol        # Main access control contract
-│   └── interfaces/           # Contract interfaces
+│   └── FLRegistry.sol        # Main access control contract
 │
 ├── scripts/                   # Deployment and utilities
-│   ├── deploy.js             # Contract deployment script
-│   ├── preprocess_mimic.py   # Data preprocessing pipeline
-│   ├── validate_dataset.py   # Dataset integrity checker
-│   └── generate_figures.py   # Paper figure reproduction
+│   └── deploy.js             # Contract deployment script
 │
 ├── src/                       # Federated Learning Core
 │   ├── main_tbfl_simulation.py      # Main execution script
 │   ├── blockchain_manager.py        # Web3 interface
-│   ├── cliente_fl.py               # FL client (hospital)
-│   ├── servidor_fl.py              # FL server (aggregator)
-│   └── models/
-│       └── mlp_mortality.py        # MLP architecture
-│
-├── sql/                       # Database queries
-│   └── cohort_selection.sql  # MIMIC-IV filtering
+│   └── cliente_fl.py                # FL client (hospital)
 │
 ├── data/                      # Data directory (user-provided)
 │   ├── mortalidade_features.csv    # Preprocessed dataset
-│   └── raw/                  # Raw MIMIC-IV files (not included)
-│
-├── results/                   # Experimental outputs
-│   ├── metrics_100rounds.csv
-│   ├── convergence_plot.png
-│   └── gas_analysis.csv
-│
-├── tests/                     # Unit and integration tests
-│   ├── test_contracts.js     # Smart contract tests
-│   └── test_federated.py     # FL algorithm tests
+│   └── raw/                         # Raw MIMIC-IV files (not included)
 │
 ├── hardhat.config.js          # Hardhat configuration
 ├── package.json               # Node.js dependencies
@@ -347,6 +327,29 @@ TBFL-EHR-Framework/
 ├── .env.example              # Environment template
 └── README.md                  # This file
 ```
+
+### Directory Descriptions
+
+- **`contracts/`**: Contains Solidity smart contracts for blockchain-based access control
+  - `FLRegistry.sol`: Implements DID/VC verification and authorization registry
+
+- **`scripts/`**: Deployment automation and utility scripts
+  - `deploy.js`: Deploys FLRegistry contract to local or testnet Ethereum network
+
+- **`src/`**: Core federated learning implementation
+  - `main_tbfl_simulation.py`: Orchestrates the complete TBFL workflow (100 rounds)
+  - `blockchain_manager.py`: Web3.py interface for smart contract interaction
+  - `cliente_fl.py`: Hospital client implementing MLP training and FedProx optimization
+
+- **`data/`**: Dataset directory (user must provide MIMIC-IV data)
+  - `mortalidade_features.csv`: Preprocessed cohort with 546,028 ICU admissions
+  - `raw/`: Placeholder for raw MIMIC-IV files (not distributed due to DUA)
+
+- **Configuration Files**:
+  - `hardhat.config.js`: Ethereum network configuration (localhost, testnets)
+  - `package.json`: Node.js dependencies (Hardhat, Ethers.js)
+  - `requirements.txt`: Python dependencies (PyTorch, Web3, Scikit-learn)
+  - `.env.example`: Template for environment variables (private keys, database credentials)
 
 ---
 
@@ -433,16 +436,19 @@ event UpdateSubmitted(address indexed worker, bytes32 modelHash, uint256 round);
 - ABI loading and contract interaction
 - Transaction signing with private keys
 - Gas estimation and monitoring
+- Connection to local Hardhat node
 
 **`cliente_fl.py`**: Federated Learning client
 - MLP architecture (3 hidden layers: 128→64→32 neurons)
 - FedProx optimizer with proximal term μ=0.01
 - Local SMOTETomek balancing for class imbalance
+- Blockchain verification before model submission
 
-**`servidor_fl.py`**: Aggregation server
-- Weighted averaging based on local dataset sizes
-- Convergence monitoring and early stopping
-- Metrics logging (CSV export)
+**`main_tbfl_simulation.py`**: Main orchestration
+- 100-round federated learning simulation
+- Multi-client coordination (3 hospitals by default)
+- Performance metrics logging
+- Security validation (Sybil attack prevention)
 
 ---
 
@@ -454,10 +460,7 @@ event UpdateSubmitted(address indexed worker, bytes32 modelHash, uint256 round);
 # Run all contract tests
 npx hardhat test
 
-# Run specific test suite
-npx hardhat test test/FLRegistry.test.js
-
-# With gas reporting
+# Run with gas reporting
 REPORT_GAS=true npx hardhat test
 ```
 
@@ -467,24 +470,7 @@ REPORT_GAS=true npx hardhat test
 - ✅ Model submission validation
 - ✅ Event emission verification
 
-### Federated Learning Tests
-
-```bash
-# Activate virtual environment
-source venv/bin/activate  # or venv\Scripts\activate on Windows
-
-# Run unit tests
-pytest tests/test_federated.py -v
-
-# With coverage report
-pytest tests/ --cov=src --cov-report=html
-```
-
-**Test Coverage**:
-- ✅ Data loading and preprocessing
-- ✅ Model training convergence
-- ✅ Aggregation correctness
-- ✅ Blockchain integration
+**Note**: Additional test files for Python components will be added in future releases.
 
 ---
 
@@ -527,6 +513,9 @@ We welcome contributions! Please follow these steps:
 
 ---
 
+## 📄 Citation
+
+
 **Full citation details will be provided upon paper acceptance.**
 
 ---
@@ -538,7 +527,7 @@ We welcome contributions! Please follow these steps:
 - **[Anonymized Institution]** for computational resources
 - **Hyperledger** and **Ethereum Foundation** for open-source blockchain tools
 
-**Note**: Full acknowledgments, including institutional affiliations and funding sources, will be disclosed upon paper acceptance.
+**Note**: Full acknowledgments including institutional affiliations and funding sources will be disclosed upon paper acceptance.
 
 ---
 
@@ -546,7 +535,7 @@ We welcome contributions! Please follow these steps:
 
 **For review-related inquiries, please contact the journal editorial office.**
 
-Author contact information and institutional affiliations will be provided upon paper acceptance to maintain the integrity of the double-blind review.
+Author contact information and institutional affiliations will be provided upon paper acceptance to maintain double-blind review integrity.
 
 ---
 

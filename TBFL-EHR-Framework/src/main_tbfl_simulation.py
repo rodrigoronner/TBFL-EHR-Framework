@@ -6,12 +6,6 @@ import time
 import pandas as pd
 from scipy import stats
 from torch.utils.data import DataLoader
-
-# Local Imports (Ensure these files exist in your repository)
-# Rename your previous files to match these imports:
-# carregar_dados.py -> data_loader.py
-# cliente_fl.py     -> fl_client.py
-# blockchain_manager.py -> blockchain_manager.py
 from data_loader import load_and_process_mimic
 from fl_client import MLP, train_client_fedprox, MimicDataset
 from blockchain_manager import BlockchainManager
@@ -152,7 +146,6 @@ def main():
         return
 
     # 2. Load Data
-    # Note: carregar_e_processar_mimic should be renamed to load_and_process_mimic in data_loader.py
     X_train, y_train, X_test, y_test, user_groups = load_and_process_mimic(CSV_PATH, ARGS['num_users'])
     dataset_train = MimicDataset(X_train, y_train)
     
@@ -189,7 +182,7 @@ def main():
             
             # Blockchain Verification
             t0_bc = time.time()
-            # Simulate IPFS Hash (in production this would be real CID)
+            # Simulate IPFS Hash (in production, this would be a real CID)
             fake_ipfs = f"QmHash_{round_idx}_{worker_addr[:5]}"
             
             # Attempt to submit to Smart Contract

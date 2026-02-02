@@ -543,7 +543,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Rodrigo Tertulino**  
 📧 Email: rodrigo.tertulino@ifrn.edu.br  
-🔗 LinkedIn:[ [linkedin.com/in/rodrigotertulino](https://linkedin.com/in/rodrigotertulino)  ](https://www.linkedin.com/in/rodrigo-tertulino-phd-06557962/)
+🔗 LinkedIn:(https://www.linkedin.com/in/rodrigo-tertulino-phd-06557962/)
 🐙 GitHub: [@rodrigoronner](https://github.com/rodrigoronner)
 
 **Research Group**: Software Engineering and Automation Research Laboratory  

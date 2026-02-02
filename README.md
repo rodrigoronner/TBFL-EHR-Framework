@@ -63,7 +63,7 @@ The TBFL framework consists of three synergistic layers:
 1. **Blockchain Layer (Ethereum/Hardhat)**
    - Manages participant authentication via `FLRegistry.sol` smart contract
    - Enforces access control through DID/VC verification
-   - Records immutable audit trail of model updates
+   - Records an immutable audit trail of model updates
    - **Gas Cost**: ~0.18 USD per round with linear scalability
 
 2. **Federated Learning Layer (PyTorch)**
@@ -73,7 +73,7 @@ The TBFL framework consists of three synergistic layers:
    - **Training Time**: ~17 seconds per round (local), ~0.02s blockchain verification
 
 3. **Data Processing Pipeline (MIMIC-IV)**
-   - SQL-based cohort selection from PostgreSQL instance
+   - SQL-based cohort selection from a PostgreSQL instance
    - Python-based feature engineering and preprocessing
    - Automated tensor conversion for distributed training
    - **Dataset Size**: 546,028 ICU admissions after filtering
@@ -534,7 +534,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **MIMIC-IV Team** at MIT Laboratory for Computational Physiology
 - **PhysioNet** for providing credentialed access to clinical data
 - **Federal Institute of Education, Science, and Technology of Rio Grande do Norte (IFRN)** for computational resources
-- **Software Engineering and Automation Research Laboratory (LaPEA)** for institutional support
+- **Software Engineering and Automation Research Laboratory** for institutional support
 - **Hyperledger** and **Ethereum Foundation** for open-source blockchain tools
 
 ---
@@ -546,7 +546,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 🔗 LinkedIn: [linkedin.com/in/rodrigotertulino](https://linkedin.com/in/rodrigotertulino)  
 🐙 GitHub: [@rodrigoronner](https://github.com/rodrigoronner)
 
-**Research Group**: Software Engineering and Automation Research Laboratory (LaPEA)  
+**Research Group**: Software Engineering and Automation Research Laboratory  
 🏛️ Institution: Federal Institute of Rio Grande do Norte (IFRN), Brazil
 
 ---
@@ -555,7 +555,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 This software is provided for **research and educational purposes only**. It should not be used in production clinical environments without extensive additional validation, regulatory approval, and compliance verification. The authors assume no liability for any harm resulting from the use of this software.
 
-**Data Privacy**: Users must comply with all applicable data protection regulations (GDPR, HIPAA, etc.) when working with electronic health records. The MIMIC-IV dataset is subject to the PhysioNet Data Use Agreement.
+**Data Privacy**: Users must comply with all applicable data protection regulations (e.g., GDPR, HIPAA) when working with electronic health records. The MIMIC-IV dataset is subject to the PhysioNet Data Use Agreement.
 
 ---
 

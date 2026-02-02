@@ -111,7 +111,7 @@ def analyze_statistics(df_history):
     
     # 2. T-Test (TBFL Real vs Theoretical Attack Baseline)
     # Since we are not running the full attack in this script (to save time), 
-    # we construct a theoretical baseline based on literature: Sybil attacks degrade models by ~20%.
+    # We construct a theoretical baseline based on literature: Sybil attacks degrade models by ~20%.
     
     # Get last 20 rounds (stable phase)
     tbfl_stable = acc_series[-20:]

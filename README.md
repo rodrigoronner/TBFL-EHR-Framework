@@ -3,10 +3,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![Hardhat](https://img.shields.io/badge/built%20with-Hardhat-FFDB1C.svg)](https://hardhat.org/)
+[![DOI](https://img.shields.io/badge/DOI-10.xxxx%2Fxxxxx-blue)](https://doi.org/10.xxxx/xxxxx)
 
 > Official implementation of **"Trustworthy Blockchain-based Federated Learning for Electronic Health Records: Securing Participant Identity with Decentralized Identifiers and Verifiable Credentials"**
-
-**Note**: This repository is anonymized for peer review. Author information and institutional affiliations will be disclosed upon paper acceptance.
 
 ## 📖 Overview
 
@@ -64,7 +63,7 @@ The TBFL framework consists of three synergistic layers:
 1. **Blockchain Layer (Ethereum/Hardhat)**
    - Manages participant authentication via `FLRegistry.sol` smart contract
    - Enforces access control through DID/VC verification
-   - Records an immutable audit trail of model updates
+   - Records immutable audit trail of model updates
    - **Gas Cost**: ~0.18 USD per round with linear scalability
 
 2. **Federated Learning Layer (PyTorch)**
@@ -74,7 +73,7 @@ The TBFL framework consists of three synergistic layers:
    - **Training Time**: ~17 seconds per round (local), ~0.02s blockchain verification
 
 3. **Data Processing Pipeline (MIMIC-IV)**
-   - SQL-based cohort selection from a PostgreSQL instance
+   - SQL-based cohort selection from PostgreSQL instance
    - Python-based feature engineering and preprocessing
    - Automated tensor conversion for distributed training
    - **Dataset Size**: 546,028 ICU admissions after filtering
@@ -87,7 +86,6 @@ The TBFL framework consists of three synergistic layers:
 
 - **Python**: 3.8 or higher
 - **Node.js**: 14.x or higher (with NPM)
-- **PostgreSQL**: 12.x or higher (for MIMIC-IV hosting)
 - **Git**: Version control
 
 ### Required Access
@@ -95,7 +93,7 @@ The TBFL framework consists of three synergistic layers:
 - **MIMIC-IV Database**: Credentialed access via [PhysioNet](https://physionet.org/content/mimiciv/2.2/)
   - Complete CITI "Data or Specimens Only Research" training
   - Sign Data Use Agreement (DUA)
-  - Download MIMIC-IV v3.1 (latest)
+  - Download MIMIC-IV v2.2 or v3.1
 
 ---
 
@@ -104,7 +102,7 @@ The TBFL framework consists of three synergistic layers:
 ### 1. Clone Repository
 
 ```bash
-git clone https://anonymous.4open.science/r/TBFL-EHR-Framework-F510.git
+git clone https://github.com/rodrigoronner/TBFL-EHR-Framework.git
 cd TBFL-EHR-Framework
 ```
 
@@ -124,7 +122,7 @@ npm install
 
 ### 3. Python Environment Setup
 
-Create an isolated virtual environment and install dependencies:
+Create isolated virtual environment and install dependencies:
 
 ```bash
 # Create virtual environment
@@ -148,29 +146,43 @@ pip install -r requirements.txt
 - `imbalanced-learn>=0.9.0`: SMOTETomek implementation
 - `psycopg2-binary>=2.9.0`: PostgreSQL connector
 
+---
 
 ## 🧪 Experimental Replication Guide
 
-### Step 1. Database Setup (MIMIC-IV)
+### Step 1: Prepare MIMIC-IV Dataset
 
-**The preprocessed dataset is included in the repository:**
+**Option A: Use Provided Preprocessed Dataset (Recommended)**
+
+The repository includes a preprocessed, de-identified dataset that meets all inclusion criteria:
 
 ```bash
 # Extract the provided dataset
 cd data/
 unzip mortalidade_features.csv.zip
 cd ..
+# This creates mortalidade_features.csv (546,028 admissions)
 ```
 
-This creates `mortalidade_features.csv`, which is automatically loaded by the main simulation script.
+The dataset is automatically loaded by `main_tbfl_simulation.py` during execution.
 
-**Optional - For reproducing preprocessing from raw MIMIC-IV:**
+**Option B: Generate Dataset from Raw MIMIC-IV**
 
-If you have PhysioNet access and want to regenerate the dataset from scratch:
+If you have access to MIMIC-IV and wish to reproduce the preprocessing:
 
+1. Access MIMIC-IV database (version 2.2 or 3.1) via PhysioNet
+2. Execute SQL cohort selection query (see SQL logic embedded in `src/main_tbfl_simulation.py`)
+3. Apply inclusion criteria:
+   - Adult patients (age ≥ 18 years)
+   - First admission only (prevent data leakage)
+   - Non-null mortality outcome (`hospital_expire_flag`)
+4. Save result as `data/mortalidade_features.csv`
+
+**Dataset Validation**:
 ```bash
-# Follow MIMIC-IV documentation: https://mimic.mit.edu/docs/gettingstarted/local/
-# The SQL logic for cohort selection is embedded in src/main_tbfl_simulation.py
+# Verify dataset was extracted correctly
+python -c "import pandas as pd; df = pd.read_csv('data/mortalidade_features.csv'); print(f'Loaded {len(df)} admissions')"
+# Expected output: Loaded 546028 admissions
 ```
 
 ### Step 2: Launch Local Blockchain Node
@@ -302,9 +314,10 @@ TBFL-EHR-Framework/
 │   ├── blockchain_manager.py        # Web3 interface
 │   └── cliente_fl.py                # FL client (hospital)
 │
-├── data/                      # Data directory (user-provided)
-│   ├── mortalidade_features.csv    # Preprocessed dataset
-│   └── raw/                         # Raw MIMIC-IV files (not included)
+├── data/                      # Data directory
+│   ├── mortalidade_features.csv.zip # Compressed preprocessed dataset
+│   ├── mortalidade_features.csv     # Extracted dataset (after unzip)
+│   └── raw/                         # Raw MIMIC-IV files (optional)
 │
 ├── hardhat.config.js          # Hardhat configuration
 ├── package.json               # Node.js dependencies
@@ -326,9 +339,12 @@ TBFL-EHR-Framework/
   - `blockchain_manager.py`: Web3.py interface for smart contract interaction
   - `cliente_fl.py`: Hospital client implementing MLP training and FedProx optimization
 
-- **`data/`**: Dataset directory (user must provide MIMIC-IV data)
-  - `mortalidade_features.csv`: Preprocessed cohort with 546,028 ICU admissions
+- **`data/`**: Dataset directory (preprocessed data included)
+  - `mortalidade_features.csv.zip`: Compressed preprocessed MIMIC-IV cohort (included in repository)
+  - `mortalidade_features.csv`: Extracted dataset with 546,028 ICU admissions (created after unzip)
   - `raw/`: Placeholder for raw MIMIC-IV files (not distributed due to DUA)
+  
+  **Note**: The main script automatically loads `mortalidade_features.csv` during execution
 
 - **Configuration Files**:
   - `hardhat.config.js`: Ethereum network configuration (localhost, testnets)
@@ -348,13 +364,6 @@ Create `.env` file in project root:
 # Blockchain Configuration
 PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 INFURA_API_KEY=your_infura_key_here  # For mainnet deployment
-
-# Database Configuration
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_DB=mimic
-POSTGRES_USER=your_user
-POSTGRES_PASSWORD=your_password
 
 # Simulation Parameters
 NUM_CLIENTS=3
@@ -500,8 +509,23 @@ We welcome contributions! Please follow these steps:
 
 ## 📄 Citation
 
+If you use this code in your research, please cite our paper:
 
-**Full citation details will be provided upon paper acceptance.**
+```bibtex
+@article{tertulino2025tbfl,
+  title={Trustworthy Blockchain-based Federated Learning for Electronic Health Records: Securing Participant Identity with Decentralized Identifiers and Verifiable Credentials},
+  author={Tertulino, Rodrigo and Almeida, Ricardo},
+  journal={[Journal Name]},
+  year={2025},
+  note={Under Review}
+}
+```
+
+---
+
+## 📜 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
@@ -509,18 +533,21 @@ We welcome contributions! Please follow these steps:
 
 - **MIMIC-IV Team** at MIT Laboratory for Computational Physiology
 - **PhysioNet** for providing credentialed access to clinical data
-- **[Anonymized Institution]** for computational resources
+- **Federal Institute of Education, Science, and Technology of Rio Grande do Norte (IFRN)** for computational resources
+- **Software Engineering and Automation Research Laboratory (LaPEA)** for institutional support
 - **Hyperledger** and **Ethereum Foundation** for open-source blockchain tools
-
-**Note**: Full acknowledgments including institutional affiliations and funding sources will be disclosed upon paper acceptance.
 
 ---
 
 ## 📧 Contact
 
-**For review-related inquiries, please contact the journal editorial office.**
+**Rodrigo Tertulino**  
+📧 Email: rodrigo.tertulino@ifrn.edu.br  
+🔗 LinkedIn: [linkedin.com/in/rodrigotertulino](https://linkedin.com/in/rodrigotertulino)  
+🐙 GitHub: [@rodrigoronner](https://github.com/rodrigoronner)
 
-Author contact information and institutional affiliations will be provided upon paper acceptance to maintain double-blind review integrity.
+**Research Group**: Software Engineering and Automation Research Laboratory (LaPEA)  
+🏛️ Institution: Federal Institute of Rio Grande do Norte (IFRN), Brazil
 
 ---
 
@@ -528,7 +555,7 @@ Author contact information and institutional affiliations will be provided upon 
 
 This software is provided for **research and educational purposes only**. It should not be used in production clinical environments without extensive additional validation, regulatory approval, and compliance verification. The authors assume no liability for any harm resulting from the use of this software.
 
-**Data Privacy**: Users must comply with all applicable data protection regulations (e.g., GDPR, HIPAA) when working with electronic health records. The MIMIC-IV dataset is subject to the PhysioNet Data Use Agreement.
+**Data Privacy**: Users must comply with all applicable data protection regulations (GDPR, HIPAA, etc.) when working with electronic health records. The MIMIC-IV dataset is subject to the PhysioNet Data Use Agreement.
 
 ---
 
@@ -536,9 +563,7 @@ This software is provided for **research and educational purposes only**. It sho
 
 **🌟 Star this repository if you find it helpful!**
 
-[![GitHub stars](https://img.shields.io/github/stars/anonymous/TBFL-EHR-Framework?style=social)](https://github.com/anonymous/TBFL-EHR-Framework)
-[![GitHub forks](https://img.shields.io/github/forks/anonymous/TBFL-EHR-Framework?style=social)](https://github.com/anonymous/TBFL-EHR-Framework/fork)
-
-**Repository URL will be updated upon paper acceptance**
+[![GitHub stars](https://img.shields.io/github/stars/rodrigoronner/TBFL-EHR-Framework?style=social)](https://github.com/rodrigoronner/TBFL-EHR-Framework)
+[![GitHub forks](https://img.shields.io/github/forks/rodrigoronner/TBFL-EHR-Framework?style=social)](https://github.com/rodrigoronner/TBFL-EHR-Framework/fork)
 
 </div>

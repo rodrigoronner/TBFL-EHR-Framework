@@ -512,12 +512,14 @@ We welcome contributions! Please follow these steps:
 If you use this code in your research, please cite our paper:
 
 ```bibtex
-@article{tertulino2025tbfl,
-  title={Trustworthy Blockchain-based Federated Learning for Electronic Health Records: Securing Participant Identity with Decentralized Identifiers and Verifiable Credentials},
-  author={Tertulino, Rodrigo and Almeida, Ricardo},
-  journal={[Journal Name]},
-  year={2025},
-  note={Under Review}
+@article{tertulino2026,
+      title={Trustworthy Blockchain-based Federated Learning for Electronic Health Records: Securing Participant Identity with Decentralized Identifiers and Verifiable Credentials}, 
+      author={Rodrigo Tertulino and Ricardo Almeida and Laercio Alencar},
+      year={2026},
+      eprint={2602.02629},
+      archivePrefix={arXiv},
+      primaryClass={cs.CR},
+      url={https://arxiv.org/abs/2602.02629}, 
 }
 ```
 

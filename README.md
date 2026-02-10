@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![Hardhat](https://img.shields.io/badge/built%20with-Hardhat-FFDB1C.svg)](https://hardhat.org/)
-[![DOI](https://img.shields.io/badge/[https://arxiv.org/abs/2602.02629-blue)](https://arxiv.org/abs/2602.02629)
+[![DOI](https://img.shields.io/badge/https://arxiv.org/abs/2602.02629-blue)](https://arxiv.org/abs/2602.02629)
 
 > Official implementation of **"Trustworthy Blockchain-based Federated Learning for Electronic Health Records: Securing Participant Identity with Decentralized Identifiers and Verifiable Credentials"**
 

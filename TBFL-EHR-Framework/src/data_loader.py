@@ -39,6 +39,12 @@ def load_and_process_mimic(file_path, num_clients, dirichlet_alpha=0.5):
     if target_col not in df.columns:
         target_col = df.columns[-1]
 
+    # Drop non-clinical identifier columns (e.g. the admission ID): these carry no
+    # predictive signal and are not part of the paper's feature set (Sec. 3.1.1),
+    # so leaving them in would let the MLP fit noise from an arbitrary row ID.
+    id_cols = [c for c in df.columns if c.lower() in ('hadm_id', 'subject_id', 'row_id')]
+    df = df.drop(columns=id_cols)
+
     X = df.drop(columns=[target_col])
     y = df[target_col]
 

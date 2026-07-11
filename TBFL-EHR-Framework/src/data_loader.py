@@ -3,8 +3,9 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.impute import SimpleImputer
+from imblearn.combine import SMOTETomek
 
-def load_and_process_mimic(file_path, num_clients):
+def load_and_process_mimic(file_path, num_clients, dirichlet_alpha=0.5):
     """
     Loads the MIMIC-IV dataset (EHR features), performs preprocessing, 
     and partitions the data among federated clients.
@@ -70,35 +71,81 @@ def load_and_process_mimic(file_path, num_clients):
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
 
     # 4. Federated Partitioning (User Groups)
-    # Distribute training data among clients.
-    # To simulate Non-IID data (as claimed in the paper), we can use a Dirichlet distribution,
-    # but for this base implementation, we use a randomized partition that ensures variety.
-    user_groups = partition_data(y_train, num_clients)
+    # Distribute training data among clients using a Dirichlet(alpha) distribution over
+    # the label distribution, producing realistic non-IID class-prevalence heterogeneity
+    # across federated clients (Sec. 3.1.2 of the paper).
+    user_groups = partition_data_dirichlet(y_train, num_clients, alpha=dirichlet_alpha)
 
     return X_train, y_train, X_test, y_test, user_groups
 
-def partition_data(y_train, num_clients):
+def partition_data_dirichlet(y_train, num_clients, alpha=0.5, seed=42):
     """
-    Splits the training data indices among clients.
-    Currently implements an IID split for stability in the provided demo code.
-    
+    Splits training data indices among clients using a Dirichlet(alpha) distribution,
+    the standard approach for simulating non-IID class-prevalence skew in Federated
+    Learning benchmarks. Lower alpha => more heterogeneous (skewed) clients.
+
     Args:
         y_train (np.array): Labels of training data.
         num_clients (int): Number of clients.
-        
+        alpha (float): Dirichlet concentration parameter (paper uses alpha=0.5).
+        seed (int): RNG seed for reproducibility.
+
     Returns:
-        dict: {client_id: [index_1, index_2, ...]}
+        dict: {client_id: set(index_1, index_2, ...)}
     """
-    num_items = int(len(y_train) / num_clients)
-    dict_users, all_idxs = {}, [i for i in range(len(y_train))]
-    
-    for i in range(num_clients):
-        # Randomly select 'num_items' indices for client 'i' without replacement
-        dict_users[i] = set(np.random.choice(all_idxs, num_items, replace=False))
-        # Remove selected indices from the pool
-        all_idxs = list(set(all_idxs) - dict_users[i])
-        
-    return dict_users
+    rng = np.random.default_rng(seed)
+    y_train = np.asarray(y_train)
+    classes = np.unique(y_train)
+
+    client_idxs = [[] for _ in range(num_clients)]
+    for c in classes:
+        c_idxs = np.where(y_train == c)[0]
+        rng.shuffle(c_idxs)
+
+        # Sample a class-prevalence proportion per client from a Dirichlet distribution
+        proportions = rng.dirichlet(alpha=np.repeat(alpha, num_clients))
+        split_points = (np.cumsum(proportions) * len(c_idxs)).astype(int)[:-1]
+        for client_id, split in enumerate(np.split(c_idxs, split_points)):
+            client_idxs[client_id].extend(split.tolist())
+
+    return {i: set(client_idxs[i]) for i in range(num_clients)}
+
+def build_client_datasets(X_train, y_train, user_groups):
+    """
+    Builds one locally-balanced dataset per federated client.
+
+    Per Sec. 3.1.4 of the paper, the train/test split happens first (globally), and
+    SMOTETomek is then applied exclusively to each client's local training fold, never
+    to the held-out test set, which remains in its original imbalanced distribution.
+
+    Args:
+        X_train (np.array): Global training features (post train/test split).
+        y_train (np.array): Global training labels.
+        user_groups (dict): {client_id: set(indices)} from partition_data_dirichlet.
+
+    Returns:
+        dict: {client_id: (X_balanced, y_balanced)}
+    """
+    client_data = {}
+    for client_id, idxs in user_groups.items():
+        idxs = sorted(idxs)
+        X_c, y_c = X_train[idxs], y_train[idxs]
+
+        # SMOTETomek needs a handful of minority-class samples to draw neighbors from;
+        # a Dirichlet split can occasionally starve a client of one class entirely, in
+        # which case we skip resampling for that client rather than error out.
+        class_counts = np.bincount(y_c.astype(int))
+        minority_count = class_counts.min() if len(class_counts) > 1 else 0
+
+        if len(class_counts) > 1 and minority_count > 5:
+            smt = SMOTETomek(random_state=42)
+            X_bal, y_bal = smt.fit_resample(X_c, y_c)
+        else:
+            X_bal, y_bal = X_c, y_c
+
+        client_data[client_id] = (X_bal, y_bal)
+
+    return client_data
 
 def generate_synthetic_mimic_data(samples=1000):
     """

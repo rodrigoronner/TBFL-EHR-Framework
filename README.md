@@ -28,20 +28,21 @@ The TBFL framework consists of three synergistic layers:
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    APPLICATION LAYER                        │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
-│  │  Hospital A  │  │  Hospital B  │  │  Hospital C  │      │
-│  │   (Client)   │  │   (Client)   │  │   (Client)   │      │
-│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘      │
-│         │                  │                  │              │
-│         └──────────────────┴──────────────────┘              │
+│  ┌──────────────┐  ┌──────────────┐         ┌──────────────┐│
+│  │  Hospital 1  │  │  Hospital 2  │  . . .  │ Hospital K=10││
+│  │   (Client)   │  │   (Client)   │         │   (Client)   ││
+│  └──────┬───────┘  └──────┬───────┘         └──────┬───────┘│
+│         │                  │                        │        │
+│         └──────────────────┴────────────────────────┘        │
 │                            │                                 │
 └────────────────────────────┼─────────────────────────────────┘
                              │
 ┌────────────────────────────┼─────────────────────────────────┐
 │              BLOCKCHAIN LAYER (Identity Verification)        │
 │  ┌──────────────────────────────────────────────────────┐   │
-│  │  FLRegistry.sol (Ethereum Smart Contract)            │   │
-│  │  • DID/VC Verification                               │   │
+│  │  FLRegistry.sol (address allowlist, used by the      │   │
+│  │  main FL simulation) or FLRegistryZK.sol (DID/VC via  │   │
+│  │  EIP-712 + Groth16 ZK selective disclosure)           │   │
 │  │  • Authorization Registry                            │   │
 │  │  • Model Hash Recording                              │   │
 │  └──────────────────────────────────────────────────────┘   │
@@ -61,8 +62,10 @@ The TBFL framework consists of three synergistic layers:
 ### Layer Descriptions
 
 1. **Blockchain Layer (Ethereum/Hardhat)**
-   - Manages participant authentication via `FLRegistry.sol` smart contract
-   - Enforces access control through DID/VC verification
+   - The main FL simulation gates participation via `FLRegistry.sol`, a lightweight
+     address allowlist managed by a Trusted Issuer
+   - `FLRegistryZK.sol` implements the full DID/Verifiable Credential/Zero-Knowledge
+     identity layer described in Sec. 4.1 — see *Identity Layer* below
    - Records an immutable audit trail of model updates
    - **Gas Cost**: ~0.18 USD per round with linear scalability
 
@@ -139,12 +142,12 @@ pip install -r requirements.txt
 ```
 
 **Key Dependencies** (from `requirements.txt`):
-- `torch>=1.12.0`: Deep learning framework
-- `web3>=5.31.0`: Ethereum blockchain interaction
-- `pandas>=1.5.0`: Data manipulation
-- `scikit-learn>=1.1.0`: Machine learning utilities
-- `imbalanced-learn>=0.9.0`: SMOTETomek implementation
-- `psycopg2-binary>=2.9.0`: PostgreSQL connector
+- `torch>=2.0.0`: Deep learning framework
+- `web3`: Ethereum blockchain interaction
+- `pandas`: Data manipulation
+- `scikit-learn`: Machine learning utilities
+- `imbalanced-learn`: SMOTETomek implementation
+- `scipy`: Statistical analysis (Sybil-attack significance testing)
 
 ---
 
@@ -171,7 +174,9 @@ The dataset is automatically loaded by `main_tbfl_simulation.py` during executio
 If you have access to MIMIC-IV and wish to reproduce the preprocessing:
 
 1. Access MIMIC-IV database (version 2.2 or 3.1) via PhysioNet
-2. Execute SQL cohort selection query (see SQL logic embedded in `src/main_tbfl_simulation.py`)
+2. Write a cohort-selection query against your own PostgreSQL instance (the repository
+   does not currently ship the SQL used to build `mimiciv_hosp.mortalidade_features`;
+   this is tracked as a reproducibility gap — see the Contributing section)
 3. Apply inclusion criteria:
    - Adult patients (age ≥ 18 years)
    - First admission only (prevent data leakage)
@@ -231,23 +236,22 @@ In **Terminal B** (with activated Python environment):
 python src/main_tbfl_simulation.py
 ```
 
-**Execution Flow** (100 rounds):
+**Execution Flow** (100 rounds, K=10 hospitals per round):
 
 ```
-[Round 1/100] Blockchain Handshake... ✓
-[Round 1/100] Loading MIMIC-IV data... ✓ (546,028 samples)
-[Round 1/100] Applying SMOTETomek balancing... ✓
-[Round 1/100] Hospital A - Local Training... ✓ (Loss: 0.312, Acc: 0.856)
-[Round 1/100] Hospital A - Blockchain Verification... ✓ (Gas: 45,231)
-[Round 1/100] Hospital B - Local Training... ✓ (Loss: 0.298, Acc: 0.862)
-[Round 1/100] Hospital B - Blockchain Verification... ✓ (Gas: 45,187)
-[Round 1/100] Hospital C - Local Training... ✓ (Loss: 0.305, Acc: 0.859)
-[Round 1/100] Hospital C - Blockchain Verification... ✓ (Gas: 45,209)
-[Round 1/100] Global Aggregation... ✓
-[Round 1/100] Global Model - Loss: 0.305, Acc: 0.859, AUC: 0.891
-...
-[Round 100/100] Global Model - Loss: 0.272, Acc: 0.881, AUC: 0.954
-Simulation Complete! Results logged in console output.
+🚀 Starting Real TBFL Simulation (100 Rounds, K=10 clients)...
+🔗 Blockchain Connected. Contract loaded at: 0x5FbDB2315678afecb367f032d93F642f64180aa3
+📂 Loading data from: data/mortalidade_features.csv
+✅ Data Processed. Shape: (546028, 85)
+⚖️  Applying SMOTETomek balancing to each client's local training fold...
+🏛️  Trusted Issuer issuing credential to: 0x709979... (repeats for all 10 hospitals)
+   ✅ Credential successfully registered on the ledger.
+
+   📅 R10: Loss=0.2306 | Acc=0.9082 | AUC=0.8534
+   📅 R20: Loss=0.2318 | Acc=0.9114 | AUC=0.8977
+   ...
+   📅 R100: Loss=0.2724 | Acc=0.8810 | AUC=0.9540
+✅ Simulation complete. Results saved to CSV.
 ```
 
 ### Step 5: Analyze Results
@@ -303,41 +307,66 @@ The simulation outputs performance metrics directly to the console for each roun
 ```
 TBFL-EHR-Framework/
 │
-├── contracts/                 # Ethereum Smart Contracts
-│   └── FLRegistry.sol        # Main access control contract
+├── contracts/                  # Ethereum Smart Contracts
+│   ├── FLRegistry.sol         # Main access control contract (used by the FL simulation)
+│   ├── FLRegistryZK.sol       # DID/Verifiable Credential/ZK identity layer (Sec. 4.1)
+│   └── MerkleMembershipVerifier.sol  # snarkjs-generated Groth16 verifier
 │
-├── scripts/                   # Deployment and utilities
-│   └── deploy.js             # Contract deployment script
+├── circuits/                   # Zero-Knowledge circuit source
+│   └── merkleMembership.circom
 │
-├── src/                       # Federated Learning Core
-│   ├── main_tbfl_simulation.py      # Main execution script
+├── scripts/                    # Deployment and utilities
+│   ├── deploy.js              # FLRegistry deployment script
+│   ├── deploy_zk.js           # FLRegistryZK + verifier deployment script
+│   └── zk/                    # Node/snarkjs bridge (proof generation, trusted setup)
+│
+├── src/                        # Federated Learning Core
+│   ├── main_tbfl_simulation.py      # Main execution script (K=10, 100 rounds)
+│   ├── sybil_attack_experiment.py   # Real Sybil-attack security experiment (Sec. 5.4)
 │   ├── blockchain_manager.py        # Web3 interface
-│   └── cliente_fl.py                # FL client (hospital)
+│   ├── cliente_fl.py                # FL client (hospital): MLP + FedProx
+│   ├── data_loader.py               # Dirichlet partitioning + per-client SMOTETomek
+│   ├── identity.py                  # DID (did:ethr) + EIP-712 Verifiable Credentials
+│   ├── zk_bridge.py                 # Python <-> Node bridge for ZK proof generation
+│   ├── demo_did_vc_zk.py            # Standalone DID/VC/ZK walkthrough demo
+│   └── demo_security_mechanism.py   # Standalone FLRegistry.sol access-control demo
 │
-├── data/                      # Data directory
+├── zk/keys/verification_key.json  # Groth16 verification key (zkey/ptau are gitignored)
+│
+├── data/                       # Data directory
 │   ├── mortalidade_features.csv.zip # Compressed preprocessed dataset
 │   ├── mortalidade_features.csv     # Extracted dataset (after unzip)
 │   └── raw/                         # Raw MIMIC-IV files (optional)
 │
-├── hardhat.config.js          # Hardhat configuration
-├── package.json               # Node.js dependencies
-├── requirements.txt           # Python dependencies
-├── .env.example              # Environment template
-└── README.md                  # This file
+├── hardhat.config.js           # Hardhat configuration
+├── package.json                # Node.js dependencies
+├── requirements.txt            # Python dependencies
+├── .env.example               # Environment template
+└── README.md                   # This file
 ```
 
 ### Directory Descriptions
 
-- **`contracts/`**: Contains Solidity smart contracts for blockchain-based access control
-  - `FLRegistry.sol`: Implements DID/VC verification and authorization registry
+- **`contracts/`**: Solidity smart contracts for blockchain-based access control
+  - `FLRegistry.sol`: Address-allowlist access control used by the FL simulation
+  - `FLRegistryZK.sol`: DID + EIP-712 Verifiable Credentials + Groth16 ZK selective disclosure
+  - `MerkleMembershipVerifier.sol`: Generated Groth16 verifier for the ZK circuit
+
+- **`circuits/`**: `merkleMembership.circom`, compiled and put through a Groth16 trusted
+  setup by `npm run zk:setup` (see *Identity Layer*)
 
 - **`scripts/`**: Deployment automation and utility scripts
-  - `deploy.js`: Deploys FLRegistry contract to local or testnet Ethereum network
+  - `deploy.js` / `deploy_zk.js`: Deploy `FLRegistry` / `FLRegistryZK` + verifier
+  - `zk/`: Node.js helpers (Merkle tree, commitment, proof generation) called from Python via `zk_bridge.py`
 
 - **`src/`**: Core federated learning implementation
-  - `main_tbfl_simulation.py`: Orchestrates the complete TBFL workflow (100 rounds)
+  - `main_tbfl_simulation.py`: Orchestrates the complete TBFL workflow (K=10, 100 rounds)
+  - `sybil_attack_experiment.py`: Injects real Sybil nodes mid-training and compares an
+    unprotected baseline against the blockchain-gated scenario
   - `blockchain_manager.py`: Web3.py interface for smart contract interaction
   - `cliente_fl.py`: Hospital client implementing MLP training and FedProx optimization
+  - `data_loader.py`: Dirichlet(α) non-IID partitioning and per-client SMOTETomek balancing
+  - `identity.py` / `zk_bridge.py` / `demo_did_vc_zk.py`: DID/VC/ZK identity layer
 
 - **`data/`**: Dataset directory (preprocessed data included)
   - `mortalidade_features.csv.zip`: Compressed preprocessed MIMIC-IV cohort (included in repository)
@@ -366,31 +395,35 @@ PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 INFURA_API_KEY=your_infura_key_here  # For mainnet deployment
 
 # Simulation Parameters
-NUM_CLIENTS=3
+NUM_CLIENTS=10
 NUM_ROUNDS=100
-LEARNING_RATE=0.001
+LEARNING_RATE=0.01
 FEDPROX_MU=0.01
 ```
 
+**Note**: these simulation parameters are currently hardcoded in the `ARGS` dict at the
+top of `src/main_tbfl_simulation.py` rather than read from `.env` — edit that dict directly
+to change them for now.
+
 ### Hardhat Network Configuration
 
-Edit `hardhat.config.js` for custom networks:
+The current `hardhat.config.js` is intentionally minimal:
+
+```javascript
+require("@nomicfoundation/hardhat-toolbox");
+
+module.exports = {
+  solidity: "0.8.24",
+};
+```
+
+`npx hardhat node` defaults to chain ID `31337`. To deploy to a testnet, add a `networks`
+block, for example:
 
 ```javascript
 module.exports = {
-  solidity: "0.8.19",
+  solidity: "0.8.24",
   networks: {
-    hardhat: {
-      chainId: 1337,
-      mining: {
-        auto: true,
-        interval: 0  // Instant mining for testing
-      }
-    },
-    localhost: {
-      url: "http://127.0.0.1:8545"
-    },
-    // Testnet deployment (optional)
     sepolia: {
       url: `https://sepolia.infura.io/v3/${INFURA_API_KEY}`,
       accounts: [PRIVATE_KEY]
@@ -408,41 +441,52 @@ module.exports = {
 **Key Functions**:
 
 ```solidity
-// Authorize hospital to participate
-function authorizeWorker(address worker) external onlyIssuer
+// Trusted Issuer authorizes a hospital to participate
+function authorizeWorker(address worker) external
 
-// Submit model hash after local training
-function submitUpdate(bytes32 modelHash) external onlyAuthorized
+// Submit model hash after local training (reverts if not authorized)
+function submitUpdate(string memory ipfsHash) external
 
 // Query authorization status
-function isAuthorized(address worker) external view returns (bool)
+function authorizedWorkers(address worker) external view returns (bool)
 ```
 
 **Events**:
 ```solidity
-event WorkerAuthorized(address indexed worker, uint256 timestamp);
-event UpdateSubmitted(address indexed worker, bytes32 modelHash, uint256 round);
+event WorkerAuthorized(address indexed worker);
+event ModelUpdated(uint round, string newHash, address indexed contributor);
 ```
+
+For the DID/Verifiable Credential/Zero-Knowledge version of this contract, see
+`FLRegistryZK.sol` under *Identity Layer*.
 
 ### Python Modules
 
 **`blockchain_manager.py`**: Web3 interface
 - ABI loading and contract interaction
-- Transaction signing with private keys
+- Transaction signing via the connected node's own accounts
 - Gas estimation and monitoring
 - Connection to local Hardhat node
 
+**`data_loader.py`**: Data pipeline
+- Loads and preprocesses the MIMIC-derived CSV (imputation, one-hot encoding, scaling)
+- Dirichlet(α=0.5) non-IID partitioning across clients (`partition_data_dirichlet`)
+- Per-client SMOTETomek balancing, applied only to local training folds (`build_client_datasets`)
+
 **`cliente_fl.py`**: Federated Learning client
-- MLP architecture (3 hidden layers: 128→64→32 neurons)
-- FedProx optimizer with proximal term μ=0.01
-- Local SMOTETomek balancing for class imbalance
+- MLP architecture: Input → Linear(64) → ReLU → Dropout(0.2) → Linear(32) → ReLU → Linear(1) → Sigmoid
+- FedProx local training: `SGD(lr=0.01, momentum=0.9, weight_decay=1e-5)`, proximal term μ=0.01
 - Blockchain verification before model submission
 
 **`main_tbfl_simulation.py`**: Main orchestration
-- 100-round federated learning simulation
-- Multi-client coordination (3 hospitals by default)
+- 100-round federated learning simulation across K=10 hospitals
+- Weighted FedAvg aggregation (weighted by each client's local sample count)
 - Performance metrics logging
-- Security validation (Sybil attack prevention)
+
+**`sybil_attack_experiment.py`**: Security experiment (Sec. 5.4)
+- Injects real Gaussian-noise Sybil nodes mid-training
+- Compares an unprotected baseline against the blockchain-gated scenario across
+  multiple seeds, with an independent-samples t-test on the resulting AUC
 
 ---
 
@@ -497,23 +541,17 @@ registry) being unable to construct a valid proof at all.
 
 ## 🧪 Testing
 
-### Smart Contract Tests
+There is currently no automated test suite (`npx hardhat test` will report no tests
+found, since there is no `test/` directory yet — this is tracked as a contribution
+opportunity below). Correctness is instead demonstrated by the standalone demo scripts,
+each of which exercises both the accept and reject paths against a live local node:
 
-```bash
-# Run all contract tests
-npx hardhat test
-
-# Run with gas reporting
-REPORT_GAS=true npx hardhat test
-```
-
-**Test Coverage**:
-- ✅ Authorization workflow
-- ✅ Unauthorized access prevention
-- ✅ Model submission validation
-- ✅ Event emission verification
-
-**Note**: Additional test files for Python components will be added in future releases.
+- `python src/demo_security_mechanism.py` — `FLRegistry.sol` allowlist: authorized
+  hospital accepted, unauthorized attacker rejected
+- `python src/demo_did_vc_zk.py` — `FLRegistryZK.sol`: EIP-712 credential verified via
+  `ecrecover`, anonymous ZK membership proof accepted, replay and non-member proofs rejected
+- `python src/sybil_attack_experiment.py` — blockchain-gated vs. unprotected FedAvg under
+  a real Sybil-node injection
 
 ---
 
@@ -548,7 +586,9 @@ We welcome contributions! Please follow these steps:
 5. Open Pull Request
 
 **Contribution Areas**:
-- 🐛 Bug fixes and testing
+- 🐛 Bug fixes and testing (a `test/` suite for the contracts does not exist yet)
+- 📄 The SQL cohort-selection query used to build `mortalidade_features.csv` from raw
+  MIMIC-IV is not yet included in the repository
 - 📚 Documentation improvements
 - 🔬 New attack simulations
 - 🚀 Performance optimizations

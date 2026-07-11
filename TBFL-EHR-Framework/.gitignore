@@ -1,0 +1,19 @@
+# Node / Hardhat
+node_modules/
+artifacts/
+cache/
+
+# ZK build artifacts (regenerate with `npm run zk:setup`, see scripts/zk/setup.sh)
+circuits/build/
+zk/ptau/
+zk/keys/*.zkey
+zk_deployment.json
+
+# Python
+__pycache__/
+*.pyc
+venv/
+
+# Simulation outputs
+*.csv
+!data/*.csv

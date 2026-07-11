@@ -25,7 +25,9 @@ CONTRACT_ADDRESS = '0x5FbDB2315678afecb367f032d93F642f64180aa3'
 def load_contract_abi():
     """Helper to load the ABI from the Hardhat artifacts folder."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    artifact_path = os.path.join(script_dir, 'artifacts', 'contracts', 'FLRegistry.sol', 'FLRegistry.json')
+    # Hardhat writes artifacts to the project root (one level above src/), not into src/ itself.
+    project_root = os.path.dirname(script_dir)
+    artifact_path = os.path.join(project_root, 'artifacts', 'contracts', 'FLRegistry.sol', 'FLRegistry.json')
     
     if not os.path.exists(artifact_path):
         raise FileNotFoundError(f"❌ ABI Artifact not found at {artifact_path}. Did you compile the contracts?")

@@ -1,6 +1,6 @@
-# TBFL-EHR: Identity-Gated Federated Learning for Electronic Health Records
+# TBFL-EHR: Trustworthy Blockchain-based Federated Learning for Electronic Health Records
 
-This repository holds the code, smart contracts and experiment logs for *"Identity-Gated Federated Learning for Electronic Health Records: Blockchain-Anchored Verifiable Credentials against Sybil Attacks"* (Tertulino, Almeida and Alencar, IFRN).
+This repository holds the code, smart contracts and experiment logs for *"Trustworthy Blockchain-based Federated Learning for Electronic Health Records: Identity-Gated Participation against Sybil Attacks"* (Tertulino, Almeida and Alencar, IFRN; arXiv:2602.02629).
 
 In TBFL, a hospital may contribute model updates to a federation only if it holds a credential issued by an accountable authority. The admission check runs in a smart-contract registry on an Ethereum-compatible ledger, before any update reaches the aggregator. The experiments compare this identity gate with unprotected FedAvg and with the Byzantine-robust aggregators coordinate-wise Median, Trimmed Mean and Krum, under coordinated Sybil attacks on MIMIC-IV in-hospital mortality prediction with 10 non-IID clients.
 

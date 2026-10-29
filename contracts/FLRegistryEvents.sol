@@ -8,7 +8,7 @@ pragma solidity ^0.8.0;
  * This contract acts as a gatekeeper, ensuring that only authenticated participants 
  * (holding a simulated Verifiable Credential) can submit model updates.
  */
-contract FLRegistry {
+contract FLRegistryEvents {
     
     // Represents the current state of the Global Model
     struct Task {

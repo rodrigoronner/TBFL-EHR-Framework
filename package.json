@@ -1,7 +1,7 @@
 {
-  "name": "tbfl_project",
+  "name": "tbfl-ehr-framework",
   "version": "1.0.0",
-  "description": "",
+  "description": "Identity-gated federated learning for EHR: smart-contract registry and experiments",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -9,7 +9,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.1.0",
     "@nomicfoundation/hardhat-ethers": "^3.1.3",

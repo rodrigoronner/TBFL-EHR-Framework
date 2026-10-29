@@ -1,32 +1,30 @@
-#### 📄 Arquivo: `.gitignore`
-*(Impede que você envie lixo ou dados sigilosos)*
+# Dados do MIMIC-IV e derivados: NUNCA versionar (PhysioNet Credentialed Health Data Use Agreement)
+data/*
+!data/README.md
+*.csv.zip
+*.pkl
+*.pt
+*.pth
 
-```text
+# Node / Hardhat
+node_modules/
+artifacts/
+cache/
+
+# Artefatos ZK (regenerar com `npm run zk:setup`)
+circuits/build/
+zk/ptau/
+zk/keys/*.zkey
+zk_deployment.json
+
 # Python
 __pycache__/
 *.pyc
 venv/
+.venv/
 .env
 
-# Node.js
-node_modules/
-artifacts/
-cache/
-coverage/
-
-# Data (CRITICAL: NEVER UPLOAD PATIENT DATA)
-data/*.csv
-data/*.parquet
-data/*.gz
-*.pth
-*.pkl
-
-# Logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# IDEs
+# Sistema / IDE
+.DS_Store
 .vscode/
 .idea/
-.DS_Store

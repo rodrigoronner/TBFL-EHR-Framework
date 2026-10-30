@@ -3,6 +3,7 @@ Executa a grade completa de experimentos (v2) em paralelo.
 
   Experimento 1 (principal): TBFL sem ataque, 100 rodadas, 5 seeds.
   Experimento 2 (Sybil): fração de Sybils x agregador, 50 rodadas, 3 seeds.
+  Experimento 3 (`python run_all.py extra`): FoolsGold e ataque adaptativo, 50 rodadas, 3 seeds.
 """
 import itertools
 import os
@@ -16,14 +17,28 @@ OUT = os.environ.get('TBFL_OUT', os.path.join(HERE, '..', 'results'))
 WORKERS = int(os.environ.get('TBFL_WORKERS', 8))
 
 jobs = []
-for seed in range(5):
-    jobs.append(['--agg', 'tbfl', '--sybils', '0', '--seed', str(seed),
-                 '--rounds', '100', '--per_client'])
-for seed, s, agg in itertools.product(range(3), [2, 5, 10, 15],
-                                      ['fedavg', 'median', 'trimmed', 'krum', 'tbfl']):
-    jobs.append(['--agg', agg, '--sybils', str(s), '--seed', str(seed), '--rounds', '50'])
-jobs.extend(['--agg', 'fedavg', '--sybils', '0', '--seed', str(seed), '--rounds', '50']
-            for seed in range(3))
+if 'extra' in sys.argv[1:]:
+    # Experimento 3: FoolsGold sob Sybils idênticos e ataque adaptativo (Sybils diversificados)
+    for seed, s in itertools.product(range(3), [2, 5, 10, 15]):
+        jobs.append(['--agg', 'foolsgold', '--sybils', str(s), '--seed', str(seed),
+                     '--rounds', '50'])
+    for seed, s, agg in itertools.product(range(3), [5, 10],
+                                          ['foolsgold', 'median', 'trimmed', 'krum']):
+        jobs.append(['--agg', agg, '--sybils', str(s), '--seed', str(seed), '--rounds', '50',
+                     '--sybil_diversity', '1'])
+    # Agregadores robustos sem ataque: equivalem a gate + agregador robusto sob qualquer
+    # fração de Sybils, pois o gate impede que identidades não credenciadas cheguem ao agregador
+    for seed, agg in itertools.product(range(3), ['median', 'trimmed', 'krum', 'foolsgold']):
+        jobs.append(['--agg', agg, '--sybils', '0', '--seed', str(seed), '--rounds', '50'])
+else:
+    for seed in range(5):
+        jobs.append(['--agg', 'tbfl', '--sybils', '0', '--seed', str(seed),
+                     '--rounds', '100', '--per_client'])
+    for seed, s, agg in itertools.product(range(3), [2, 5, 10, 15],
+                                          ['fedavg', 'median', 'trimmed', 'krum', 'tbfl']):
+        jobs.append(['--agg', agg, '--sybils', str(s), '--seed', str(seed), '--rounds', '50'])
+    jobs.extend(['--agg', 'fedavg', '--sybils', '0', '--seed', str(seed), '--rounds', '50']
+                for seed in range(3))
 
 # Blocos de contas distintos para execuções TBFL simultâneas (Hardhat com 200 contas)
 tbfl_slot = itertools.cycle(range(0, 196, 28))
@@ -33,7 +48,7 @@ for j in jobs:
 
 
 def run(args):
-    tag = '_'.join(args[1:6:2])
+    tag = '_'.join(args[1:6:2]) + ('_div' + args[-1] if '--sybil_diversity' in args else '')
     log = open(os.path.join(OUT, 'logs', f'{tag}.log'), 'w')
     rc = subprocess.call([PY, os.path.join(HERE, 'run_experiment.py'), '--out', OUT] + args,
                          stdout=log, stderr=subprocess.STDOUT)

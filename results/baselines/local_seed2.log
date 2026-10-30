@@ -1,0 +1,10 @@
+[local_seed2] client 0: local AUC=0.8787 global AUC=0.8712
+[local_seed2] client 1: local AUC=0.8767 global AUC=0.8351
+[local_seed2] client 2: local AUC=0.8398 global AUC=0.8779
+[local_seed2] client 3: local AUC=0.8777 global AUC=0.8820
+[local_seed2] client 4: local AUC=0.8951 global AUC=0.8887
+[local_seed2] client 5: local AUC=0.8745 global AUC=0.8038
+[local_seed2] client 6: local AUC=0.7284 global AUC=0.7477
+[local_seed2] client 7: local AUC=0.8474 global AUC=0.8601
+[local_seed2] client 8: local AUC=0.8763 global AUC=0.8822
+[local_seed2] client 9: local AUC=0.8837 global AUC=0.8812

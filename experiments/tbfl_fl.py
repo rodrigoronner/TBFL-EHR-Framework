@@ -88,15 +88,51 @@ def agg_krum(updates, weights=None, f=1):
     return U[scores.argmin()].clone()
 
 
+def agg_foolsgold(updates, global_flat, history, ids):
+    """
+    FoolsGold (Fung et al., RAID 2020): pesos por participante a partir da similaridade
+    de cosseno entre os históricos acumulados de atualizações (deltas), com "pardoning"
+    e função logit. `history` persiste entre rodadas, indexado por `ids`.
+    Devolve o novo modelo global e os pesos atribuídos.
+    """
+    deltas = [u - global_flat for u in updates]
+    for i, d in zip(ids, deltas):
+        history[i] = history[i] + d if i in history else d.clone()
+    H = torch.stack([history[i] for i in ids]).double().numpy()
+    n = len(ids)
+    Hn = H / (np.linalg.norm(H, axis=1, keepdims=True) + 1e-12)
+    cs = Hn @ Hn.T - np.eye(n)
+    maxcs = cs.max(1)
+    for i in range(n):
+        for j in range(n):
+            if i != j and maxcs[i] < maxcs[j]:
+                cs[i, j] *= maxcs[i] / maxcs[j]
+    wv = np.clip(1 - cs.max(1), 0, 1)
+    if wv.max() > 0:
+        wv = wv / wv.max()
+    wv[wv == 1] = 0.99
+    with np.errstate(divide='ignore', invalid='ignore'):
+        wv = np.log(wv / (1 - wv)) + 0.5
+    wv = np.clip(np.nan_to_num(wv, nan=0.0, posinf=1.0, neginf=0.0), 0, 1)
+    if wv.sum() == 0:
+        return global_flat.clone(), wv
+    w = torch.tensor(wv, dtype=torch.float32)
+    return global_flat + (torch.stack(deltas) * (w / w.sum()).unsqueeze(1)).sum(0), wv
+
+
 # ------------------------- Ataque Sybil -------------------------
 
-def sybil_updates(n_sybils, dim, gen):
+def sybil_updates(n_sybils, dim, gen, diversity=0.0):
     """
-    Um único adversário controla todas as identidades Sybil e envia o mesmo
-    vetor de ruído N(0,1) por todas elas (ataque coordenado).
+    Um único adversário controla todas as identidades Sybil. Com diversity=0, todas enviam
+    o mesmo vetor N(0,1) (ataque coordenado). Com diversity>0 (ataque adaptativo), cada
+    Sybil soma ao vetor comum um ruído próprio N(0, diversity^2), reduzindo a similaridade
+    entre Sybils (cosseno esperado 1/(1+diversity^2)) para escapar de defesas por similaridade.
     """
     v = torch.randn(dim, generator=gen)
-    return [v.clone() for _ in range(n_sybils)]
+    if diversity <= 0:
+        return [v.clone() for _ in range(n_sybils)]
+    return [v + diversity * torch.randn(dim, generator=gen) for _ in range(n_sybils)]
 
 
 # ------------------------- Avaliação -------------------------

@@ -1,0 +1,5 @@
+[median_S0_seed2] R10: AUC=0.8956 AUPRC=0.1973 Rec=0.885 Prec=0.070 agg=10
+[median_S0_seed2] R20: AUC=0.8943 AUPRC=0.2038 Rec=0.859 Prec=0.076 agg=10
+[median_S0_seed2] R30: AUC=0.8928 AUPRC=0.2012 Rec=0.845 Prec=0.079 agg=10
+[median_S0_seed2] R40: AUC=0.8905 AUPRC=0.1957 Rec=0.856 Prec=0.073 agg=10
+[median_S0_seed2] R50: AUC=0.8906 AUPRC=0.1966 Rec=0.835 Prec=0.079 agg=10

@@ -49,11 +49,12 @@ figures/        figures generated from results/
    npx hardhat node
    ```
 
-4. Run the experiments. The full grid is 68 runs and takes about 6 hours on a 10-core CPU.
+4. Run the experiments. The main grid is 68 runs (about 6 hours on a 10-core CPU) and the extra grid is 48 runs (about 5 hours).
 
    ```bash
    cd experiments
    python run_all.py                         # Exp. 1 (no attack) + Exp. 2 (Sybil grid)
+   python run_all.py extra                   # Exp. 3: FoolsGold, adaptive Sybils, robust rules without attack
    python run_baselines.py --all             # centralized, local-only, patient-level split
    python bench_registry.py                  # gas/attack benchmark of the three registries
    python make_figures.py                    # figures/ + figures/report.json
@@ -63,8 +64,11 @@ A single run looks like this:
 
 ```bash
 python run_experiment.py --agg tbfl --sybils 5 --seed 0 --rounds 50
-# --agg {tbfl, fedavg, median, trimmed, krum}
+# --agg {tbfl, fedavg, median, trimmed, krum, foolsgold}
+# --sybil_diversity 1   adaptive attack: each Sybil adds its own N(0, I) noise
 ```
+
+`results/` holds per-round metrics, on-chain transaction logs and run metadata for every run. Model checkpoints (`*.pt`) are not published because they are trained on MIMIC-IV. Without them, `make_figures.py` regenerates every panel except the ROC and precision–recall curves (`clin_b_roc`, `clin_c_pr`), which are included in `figures/` as generated locally.
 
 ## Experimental setup (summary)
 
@@ -75,7 +79,8 @@ python run_experiment.py --agg tbfl --sybils 5 --seed 0 --rounds 50
 | Federation | 10 clients, label-Dirichlet partition (α = 0.5), per-client 80/20 stratified split |
 | Imbalance | SMOTETomek on each client's **training** split only; test sets keep the real prevalence |
 | Model | MLP 32-64-32-1, FedProx (μ = 0.01), SGD (lr 0.01, momentum 0.9), E = 3, B = 32 |
-| Attack | From round 10, S ∈ {2, 5, 10, 15} Sybils send the same N(0, I) vector and claim the mean client size |
+| Attack | From round 10, S ∈ {2, 5, 10, 15} Sybils send the same N(0, I) vector and claim the mean client size; adaptive variant adds per-Sybil noise (σ = 1) |
+| Defences | FedAvg, coordinate-wise median, trimmed mean, Krum, FoolsGold, identity gate (TBFL) |
 | Ledger | Hardhat 2.22 (EVM, automine), Solidity 0.8.24, web3.py |
 
 ## Known limitations

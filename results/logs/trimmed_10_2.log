@@ -1,0 +1,5 @@
+[trimmed_S10_seed2] R10: AUC=0.6198 AUPRC=0.0362 Rec=0.929 Prec=0.023 agg=20
+[trimmed_S10_seed2] R20: AUC=0.4263 AUPRC=0.0184 Rec=0.991 Prec=0.021 agg=20
+[trimmed_S10_seed2] R30: AUC=0.3657 AUPRC=0.0168 Rec=0.366 Prec=0.015 agg=20
+[trimmed_S10_seed2] R40: AUC=0.5475 AUPRC=0.0273 Rec=0.018 Prec=0.057 agg=20
+[trimmed_S10_seed2] R50: AUC=0.6702 AUPRC=0.0434 Rec=0.871 Prec=0.025 agg=20

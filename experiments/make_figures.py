@@ -1,239 +1,422 @@
 """
-Gera figuras, tabelas e estatísticas a partir dos CSVs de results/ (v2).
-Nenhum valor é sintetizado: tudo vem das execuções registradas.
+Gera as figuras (painéis PDF vetoriais com estilo uniforme) e o report.json com todos os
+números citados no manuscrito, a partir dos CSVs de results/. Nenhum valor é sintetizado.
+
+Cada painel é salvo como um PDF próprio com largura fixa, para ser montado no LaTeX com
+subfigure/subcaption ("(a) ...", "(b) ..."). Larguras calibradas para \\textwidth = 372 pt
+(template Springer Nature sn-jnl).
 """
 import glob
 import json
 import os
+import pickle
 
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import torch
+from matplotlib.lines import Line2D
+from matplotlib.patches import Patch
 from scipy import stats
+from sklearn.metrics import precision_recall_curve, roc_curve
+
+from tbfl_fl import MLP
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 RES = os.environ.get('TBFL_OUT', os.path.join(HERE, '..', 'results'))
+CACHE = os.environ.get('TBFL_CACHE', os.path.join(HERE, '..', 'data', 'cache'))
 FIG = os.path.join(HERE, '..', 'figures')
 os.makedirs(FIG, exist_ok=True)
-plt.rcParams.update({'font.family': 'serif', 'font.size': 11, 'figure.dpi': 300,
-                     'savefig.bbox': 'tight'})
+
+# ------------------------- Estilo uniforme -------------------------
+TEXTWIDTH_IN = 372 / 72.27
+W3 = 0.32 * TEXTWIDTH_IN          # painel em linha de três
+W2 = 0.48 * TEXTWIDTH_IN          # painel em linha de dois
+H = 1.45                          # altura comum dos painéis (polegadas)
+
+INK, INK2, GRID = '#0b0b0b', '#52514e', '#e4e3df'
+plt.rcParams.update({
+    'font.family': 'serif', 'font.serif': ['cmr10'], 'mathtext.fontset': 'cm',
+    'axes.unicode_minus': False, 'axes.formatter.use_mathtext': True,
+    'font.size': 8, 'axes.labelsize': 8, 'xtick.labelsize': 7, 'ytick.labelsize': 7,
+    'legend.fontsize': 7, 'axes.linewidth': 0.6, 'axes.edgecolor': INK2,
+    'axes.labelcolor': INK, 'xtick.color': INK2, 'ytick.color': INK2,
+    'xtick.major.width': 0.6, 'ytick.major.width': 0.6,
+    'xtick.major.size': 2.5, 'ytick.major.size': 2.5,
+    'axes.grid': True, 'axes.axisbelow': True, 'grid.color': GRID, 'grid.linewidth': 0.5,
+    'axes.spines.top': False, 'axes.spines.right': False,
+    'lines.linewidth': 1.2, 'lines.markersize': 3.5,
+    'legend.frameon': False, 'pdf.fonttype': 42, 'savefig.bbox': 'tight',
+    'savefig.pad_inches': 0.02,
+})
+
+# Paleta categórica validada (ordem fixa; a cor segue a entidade, nunca a posição)
+AGGS = ['tbfl', 'fedavg', 'median', 'trimmed', 'krum', 'foolsgold']
+COLOR = {'tbfl': '#2a78d6', 'fedavg': '#eb6834', 'median': '#1baf7a',
+         'trimmed': '#eda100', 'krum': '#e87ba4', 'foolsgold': '#008300'}
+MARKER = {'tbfl': 'o', 'fedavg': 's', 'median': '^', 'trimmed': 'v', 'krum': 'D',
+          'foolsgold': 'P'}
+LABEL = {'tbfl': 'TBFL (identity gate)', 'fedavg': 'FedAvg (unprotected)',
+         'median': 'Coordinate-wise median', 'trimmed': 'Trimmed mean', 'krum': 'Krum',
+         'foolsgold': 'FoolsGold'}
+BLUE, ORANGE, NEUTRAL = COLOR['tbfl'], COLOR['fedavg'], '#8a8984'
 
 GAS_PRICE_GWEI = {'Ethereum L1': 20, 'Arbitrum L2': 0.1}
 ETH_USD = 3000
-AGG_LABEL = {'tbfl': 'TBFL (identity-gated FedAvg)', 'fedavg': 'FedAvg (no verification)',
-             'median': 'Coordinate-wise Median', 'trimmed': 'Trimmed Mean', 'krum': 'Krum'}
-AGG_COLOR = {'tbfl': '#1f4e9c', 'fedavg': '#c0392b', 'median': '#8e44ad',
-             'trimmed': '#d68910', 'krum': '#239b56'}
 
 
-def load(agg, S, rounds=None):
+def save(fig, name):
+    fig.savefig(os.path.join(FIG, name + '.pdf'))
+    plt.close(fig)
+
+
+def panel(w=W3, h=H):
+    return plt.subplots(figsize=(w, h))
+
+
+def ms(x):
+    """Média ± desvio-padrão amostral, como string e como números."""
+    x = np.asarray(x, dtype=float)
+    sd = float(np.std(x, ddof=1)) if len(x) > 1 else 0.0
+    return {'mean': float(np.mean(x)), 'sd': sd, 'n': int(len(x)),
+            'fmt': f'{np.mean(x):.3f} ± {sd:.3f}'}
+
+
+def load(agg, S, rounds=None, div=0):
+    tag = f'{agg}_S{S}' + (f'_div{div:g}' if div else '')
     out = []
-    for f in sorted(glob.glob(os.path.join(RES, f'{agg}_S{S}_seed*.csv'))):
+    for f in sorted(glob.glob(os.path.join(RES, f'{tag}_seed*.csv'))):
         if f.endswith(('_chain.csv', '_clients.csv')):
             continue
         d = pd.read_csv(f)
         if rounds is None or len(d) == rounds:
-            d['seed'] = int(f.split('seed')[1].split('.')[0])
+            d['seed'] = int(f.rsplit('seed', 1)[1].split('.')[0])
             out.append(d)
-    return pd.concat(out) if out else pd.DataFrame()
+    return pd.concat(out, ignore_index=True) if out else pd.DataFrame()
 
 
-def band(ax, df, col, label, color, ls='-'):
+def load_baseline(mode):
+    fs = sorted(glob.glob(os.path.join(RES, 'baselines', f'{mode}_seed*.csv')))
+    if not fs:
+        return None
+    return pd.concat([pd.read_csv(f).assign(seed=int(f.rsplit('seed', 1)[1].split('.')[0]))
+                      for f in fs], ignore_index=True)
+
+
+def band(ax, df, col, color, label=None, marker=None, every=10):
     g = df.groupby('round')[col]
     m, s = g.mean(), g.std().fillna(0)
-    ax.plot(m.index, m.values, ls, color=color, label=label, lw=1.8)
-    ax.fill_between(m.index, m - s, m + s, color=color, alpha=0.2)
+    ax.fill_between(m.index, m - s, m + s, color=color, alpha=0.18, lw=0)
+    ax.plot(m.index, m.values, color=color, label=label, marker=marker,
+            markevery=every, markeredgewidth=0)
 
 
-def fmt(x):
-    return f'{np.mean(x):.3f} ± {np.std(x, ddof=1):.3f}' if len(x) > 1 else f'{x[0]:.3f}'
+def legend_strip(handles, name, ncol):
+    fig = plt.figure(figsize=(TEXTWIDTH_IN, 0.28))
+    fig.legend(handles=handles, loc='center', ncol=ncol, handlelength=2.2, columnspacing=1.4)
+    save(fig, name)
+
+
+def agg_handles(aggs):
+    return [Line2D([], [], color=COLOR[a], marker=MARKER[a], markeredgewidth=0,
+                   label=LABEL[a]) for a in aggs]
 
 
 def main():
-    report = {}
-    main = load('tbfl', 0, rounds=100)
-    final = main[main['round'] == 100]
+    rep = {}
 
-    # ---- Tabela de desempenho clínico (Exp. 1) ----
-    cols = ['auc', 'auprc', 'accuracy', 'precision', 'recall', 'f1', 'fnr', 'brier']
-    report['main_final'] = {c: fmt(final[c].values) for c in cols}
-    report['main_seeds'] = int(final['seed'].nunique())
+    # ===================== Dados e federação (seed 0) =====================
+    meta = json.load(open(os.path.join(RES, 'tbfl_S0_seed0_meta.json')))
+    raw = np.array(meta['client_raw']) / 0.8          # treino = 80% de cada cliente
+    pos = np.array(meta['client_pos_rate_raw']) * 100
+    prev = meta['test_pos'] / meta['test_n']
+    k = np.arange(1, len(raw) + 1)
+    rep['dataset'] = {'features': meta['features'], 'n_features': len(meta['features']),
+                      'client_admissions_approx': raw.round().astype(int).tolist(),
+                      'client_mortality_pct': pos.round(2).tolist(),
+                      'client_train_balanced': meta['client_sizes_balanced'],
+                      'test_n': meta['test_n'], 'test_pos': meta['test_pos'],
+                      'deploy_gas': meta['deploy_gas']}
+    fig, ax = panel(W2)
+    ax.bar(k, raw / 1e3, color=BLUE, width=0.7)
+    ax.set_xlabel('Client'); ax.set_ylabel(r'Admissions ($\times 10^3$)'); ax.set_xticks(k)
+    ax.grid(axis='x', visible=False)
+    save(fig, 'data_a_sizes')
+    fig, ax = panel(W2)
+    ax.bar(k, pos, color=BLUE, width=0.7)
+    ax.axhline(prev * 100, color=INK2, ls='--', lw=0.8)
+    ax.text(10.45, prev * 100 + 0.3, 'pooled', ha='right', color=INK2, fontsize=7)
+    ax.set_xlabel('Client'); ax.set_ylabel('In-hospital mortality (%)'); ax.set_xticks(k)
+    ax.grid(axis='x', visible=False)
+    save(fig, 'data_b_mortality')
 
-    # Fig. 4 — convergência (AUC-ROC e AUPRC)
-    fig, ax = plt.subplots(1, 2, figsize=(10, 3.8))
-    band(ax[0], main, 'auc', 'AUC-ROC', '#1f4e9c')
-    band(ax[1], main, 'auprc', 'AUPRC', '#1f4e9c')
-    prev = main['tp'].iloc[0] + main['fn'].iloc[0]
-    prev /= (main[['tp', 'fn', 'tn', 'fp']].iloc[0].sum())
-    ax[1].axhline(prev, color='gray', ls=':', label=f'Prevalence ({prev:.3f})')
-    for a, t in zip(ax, ['AUC-ROC', 'AUPRC']):
-        a.set_xlabel('Communication round'); a.set_ylabel(t); a.grid(alpha=0.3)
-    ax[1].legend()
-    fig.savefig(os.path.join(FIG, 'fig4_convergence.png')); plt.close(fig)
+    # ===================== Exp. 1: desempenho sem ataque =====================
+    main_ = load('tbfl', 0, rounds=100)
+    final = main_[main_['round'] == 100]
+    cols = ['auc', 'auprc', 'brier', 'accuracy', 'precision', 'recall', 'f1', 'fnr']
+    rep['main_final'] = {c: ms(final[c]) for c in cols}
+    best = main_.loc[main_.groupby('seed')['auc'].idxmax()]
+    rep['main_best_round'] = {'auc': ms(best['auc']), 'rounds': best['round'].tolist()}
+    rep['main_per_seed_final'] = final.set_index('seed')[['auc', 'auprc', 'recall']] \
+        .round(4).to_dict('index')
 
-    # Fig. 6 — métricas no limiar 0,5
-    fig, ax = plt.subplots(figsize=(7, 4))
-    for c, col in zip(['precision', 'recall', 'f1', 'auc'],
-                      ['#d68910', '#c0392b', '#239b56', '#1f4e9c']):
-        band(ax, main, c, c.upper() if c == 'auc' else c.capitalize(), col)
-    ax.set_xlabel('Communication round'); ax.set_ylabel('Score'); ax.grid(alpha=0.3)
-    ax.legend(ncol=2)
-    fig.savefig(os.path.join(FIG, 'fig6_metrics.png')); plt.close(fig)
+    cen = load_baseline('central_fed')
+    for col, name, ylab in [('auc', 'conv_a_auc', 'AUC-ROC'), ('auprc', 'conv_b_auprc', 'AUPRC'),
+                            ('brier', 'conv_c_brier', 'Brier score')]:
+        fig, ax = panel()
+        band(ax, main_, col, BLUE)
+        if col == 'auprc':
+            ax.axhline(prev, color=NEUTRAL, ls=':', lw=0.9)
+        if cen is not None:
+            ax.axhline(cen[cen['epoch'] == cen['epoch'].max()][col].mean(), color=INK2,
+                       ls='--', lw=0.9)
+        ax.set_xlabel('Communication round'); ax.set_ylabel(ylab); ax.set_xlim(0, 100)
+        save(fig, name)
+    legend_strip([Line2D([], [], color=BLUE, label='TBFL, no attack (mean ± SD, 5 seeds)'),
+                  Line2D([], [], color=INK2, ls='--', label='Centralized training'),
+                  Line2D([], [], color=NEUTRAL, ls=':', label='Random classifier (AUPRC)')],
+                 'conv_legend', ncol=3)
 
-    # Fig. 7 — matriz de confusão real (seed 0, rodada 100)
+    # Matriz de confusão, ROC e PR do modelo final
     r0 = final[final['seed'] == 0].iloc[0]
     cm = np.array([[r0.tn, r0.fp], [r0.fn, r0.tp]], dtype=int)
-    fig, ax = plt.subplots(figsize=(4.6, 4))
-    ax.imshow(cm, cmap='Blues')
+    rep['confusion_seed0'] = {'tn': int(r0.tn), 'fp': int(r0.fp), 'fn': int(r0.fn),
+                              'tp': int(r0.tp)}
+    fig, ax = panel()
+    ax.imshow(cm / cm.sum(1, keepdims=True), cmap='Blues', vmin=0, vmax=1)
     for i in range(2):
         for j in range(2):
-            ax.text(j, i, f'{cm[i, j]:,}', ha='center', va='center',
-                    color='white' if cm[i, j] > cm.max() / 2 else 'black', fontsize=12)
-    ax.set_xticks([0, 1], ['Pred. survival', 'Pred. death'])
-    ax.set_yticks([0, 1], ['Survival', 'Death'])
-    ax.set_xlabel('Predicted'); ax.set_ylabel('Actual')
-    fig.savefig(os.path.join(FIG, 'fig7_confusion_matrix.png')); plt.close(fig)
-    report['confusion_seed0'] = {'tn': int(r0.tn), 'fp': int(r0.fp),
-                                 'fn': int(r0.fn), 'tp': int(r0.tp)}
+            frac = cm[i, j] / cm[i].sum()
+            ax.text(j, i, f'{cm[i, j]:,}\n({frac * 100:.1f}%)', ha='center',
+                    va='center', fontsize=7, color='white' if frac > 0.5 else INK)
+    ax.set_xticks([0, 1], ['Survived', 'Died']); ax.set_yticks([0, 1], ['Survived', 'Died'])
+    ax.set_xlabel('Predicted'); ax.set_ylabel('Observed'); ax.grid(False)
+    for s in ax.spines.values():
+        s.set_visible(False)
+    save(fig, 'clin_a_confusion')
 
-    # Fig. 5 — heterogeneidade: AUC do modelo global no teste local de cada cliente
-    cl = pd.read_csv(os.path.join(RES, 'tbfl_S0_seed0_clients.csv'))
-    fig, ax = plt.subplots(figsize=(7.5, 4.2))
-    cmap = plt.get_cmap('tab10')
-    for k, g in cl.groupby('client'):
-        pr = g['pos_rate'].iloc[0]
-        ax.plot(g['round'], g['auc'], '--', color=cmap(k), alpha=0.8, lw=1.2,
-                label=f'Client {k + 1} (mortality {pr * 100:.1f}%)')
-    gm = main[main['seed'] == 0]
-    ax.plot(gm['round'], gm['auc'], color='black', lw=2.5, label='Global test set')
-    ax.set_xlabel('Communication round'); ax.set_ylabel('AUC-ROC'); ax.grid(alpha=0.3)
-    ax.legend(fontsize=7, ncol=2, loc='lower right')
-    fig.savefig(os.path.join(FIG, 'fig5_heterogeneity.png')); plt.close(fig)
-    last = cl[cl['round'] == cl['round'].max()]
-    report['client_auc_final_seed0'] = last[['client', 'auc', 'auprc', 'pos_rate',
-                                             'n_test']].round(4).to_dict('records')
-
-    # ---- Overhead e custo (logs on-chain reais) ----
-    chains = [pd.read_csv(f) for f in glob.glob(os.path.join(RES, 'tbfl_S0_seed*_chain.csv'))]
-    ch = pd.concat(chains)
-    acc = ch[ch['accepted']]
-    gas_by_kind = acc.groupby('kind')['gas'].agg(['mean', 'std', 'min', 'max']).round(1)
-    report['gas_by_kind'] = gas_by_kind.to_dict('index')
-    report['latency_ms_by_kind'] = (ch.groupby('kind')['latency_s'].mean() * 1000).round(2).to_dict()
-    tr = main.groupby('seed')[['avg_train_time', 'avg_chain_time']].mean()
-    overhead = (tr['avg_chain_time'] / tr['avg_train_time'] * 100).values
-    report['train_time_s'] = fmt(tr['avg_train_time'].values)
-    report['chain_time_ms'] = fmt(tr['avg_chain_time'].values * 1000)
-    report['overhead_pct'] = fmt(overhead)
-
-    fig, ax = plt.subplots(figsize=(7, 4))
-    g = main.groupby('round')[['avg_train_time', 'avg_chain_time']].mean()
-    ax.bar(g.index - 0.2, g['avg_train_time'], 0.4, label='Local training (off-chain)',
-           color='#1f4e9c')
-    ax.bar(g.index + 0.2, g['avg_chain_time'], 0.4, label='On-chain submission',
-           color='#d68910')
-    ax.set_yscale('log'); ax.set_xlabel('Communication round')
-    ax.set_ylabel('Time per client per round (s, log scale)'); ax.legend(); ax.grid(alpha=0.3)
-    fig.savefig(os.path.join(FIG, 'fig8_overhead.png')); plt.close(fig)
-
-    # Custo cumulativo medido (seed 0): credenciamento + submissões
-    c0 = pd.read_csv(os.path.join(RES, 'tbfl_S0_seed0_chain.csv'))
-    per_round = c0[c0['accepted']].groupby('round')['gas'].sum().sort_index()
-    cum = per_round.cumsum()
-    fig, ax1 = plt.subplots(figsize=(7, 4))
-    ax1.plot(cum.index, cum / 1e6, color='#1f4e9c', lw=2)
-    ax1.set_xlabel('Communication round'); ax1.set_ylabel('Cumulative gas (millions)')
-    ax2 = ax1.twinx()
-    usd = cum * GAS_PRICE_GWEI['Ethereum L1'] * 1e-9 * ETH_USD
-    ax2.plot(cum.index, usd, '--', color='#239b56', lw=2)
-    ax2.set_ylabel('Equivalent cost on Ethereum L1 (USD)')
-    ax1.grid(alpha=0.3)
-    fig.savefig(os.path.join(FIG, 'fig9_gas_cost.png')); plt.close(fig)
-    slope, intercept, rval, _, _ = stats.linregress(cum.index, cum.values)
-    total_gas = int(cum.iloc[-1])
-    report['gas_total_100_rounds'] = total_gas
-    report['gas_linear_r2'] = round(rval ** 2, 6)
-    report['gas_per_round_submissions'] = float(c0[(c0['kind'] == 'submit')]
-                                                .groupby('round')['gas'].sum().mean())
-    report['cost_table'] = {}
-    for net, gwei in GAS_PRICE_GWEI.items():
-        per_r = report['gas_per_round_submissions'] * gwei * 1e-9 * ETH_USD
-        report['cost_table'][net] = {'usd_per_round': round(per_r, 4),
-                                     'usd_100_rounds_total': round(
-                                         total_gas * gwei * 1e-9 * ETH_USD, 2)}
-
-    # ---- Experimento 2: Sybil ----
-    rows, curves = [], {}
-    for S in [2, 5, 10, 15]:
-        for agg in ['fedavg', 'median', 'trimmed', 'krum', 'tbfl']:
-            d = load(agg, S, rounds=50)
-            if d.empty:
-                continue
-            f = d[d['round'] == 50]
-            rows.append({'sybils': S, 'fraction': S / (S + 10), 'agg': agg,
-                         'auc_mean': f['auc'].mean(), 'auc_sd': f['auc'].std(),
-                         'auprc_mean': f['auprc'].mean(), 'recall_mean': f['recall'].mean(),
-                         'fnr_mean': f['fnr'].mean(), 'n': len(f),
-                         'rejected_per_round': f['n_rejected'].mean()})
-            curves[(agg, S)] = d
-    clean = load('fedavg', 0, rounds=50)
-    syb = pd.DataFrame(rows)
-    syb.round(4).to_csv(os.path.join(FIG, 'table_sybil.csv'), index=False)
-    if not clean.empty:
-        report['clean_fedavg_r50'] = {c: fmt(clean[clean['round'] == 50][c].values)
-                                      for c in ['auc', 'auprc', 'recall', 'fnr']}
-
-    # Fig. 10 — curvas sob ataque (S = 5, 33% das identidades)
-    fig, ax = plt.subplots(figsize=(7.5, 4.2))
-    for agg in ['tbfl', 'fedavg', 'median', 'trimmed', 'krum']:
-        if (agg, 5) in curves:
-            band(ax, curves[(agg, 5)], 'auc', AGG_LABEL[agg], AGG_COLOR[agg])
-    ax.axvline(10, color='black', ls=':', alpha=0.6)
-    ax.text(10.5, 0.52, 'Sybil nodes join (round 10)', fontsize=9)
-    ax.set_xlabel('Communication round'); ax.set_ylabel('Global AUC-ROC')
-    ax.set_ylim(0.45, 0.95); ax.grid(alpha=0.3); ax.legend(fontsize=8, loc='lower left')
-    fig.savefig(os.path.join(FIG, 'fig10_sybil_curves.png')); plt.close(fig)
-
-    # Fig. 11 — AUC final vs fração de identidades Sybil
-    fig, ax = plt.subplots(figsize=(7, 4))
-    for agg in ['tbfl', 'fedavg', 'median', 'trimmed', 'krum']:
-        s = syb[syb['agg'] == agg].sort_values('fraction')
-        ax.errorbar(s['fraction'] * 100, s['auc_mean'], yerr=s['auc_sd'], marker='o',
-                    capsize=3, color=AGG_COLOR[agg], label=AGG_LABEL[agg])
-    ax.axvline(50, color='gray', ls=':')
-    ax.set_xlabel('Sybil identities (% of participants)')
-    ax.set_ylabel('AUC-ROC at round 50'); ax.grid(alpha=0.3); ax.legend(fontsize=8)
-    fig.savefig(os.path.join(FIG, 'fig11_sybil_fraction.png')); plt.close(fig)
-
-    # Testes: TBFL vs cada baseline em S=5 e S=15 (por seed, teste t pareado)
-    report['tests'] = {}
-    for S in [5, 15]:
-        t = load('tbfl', S, rounds=50)
-        if t.empty:
+    curves = {'roc': [], 'pr': []}
+    for s in sorted(final['seed'].unique()):
+        mp = os.path.join(RES, f'tbfl_S0_seed{s}_model.pt')
+        cp = os.path.join(CACHE, f'fed_k10_a0.5_s{s}.pkl')
+        if not (os.path.exists(mp) and os.path.exists(cp)):
             continue
-        t = t[t['round'] == 50].set_index('seed')['auc']
-        for agg in ['fedavg', 'median', 'trimmed', 'krum']:
-            b = load(agg, S, rounds=50)
-            if b.empty:
-                continue
-            b = b[b['round'] == 50].set_index('seed')['auc']
-            common = t.index.intersection(b.index)
-            diff = (t[common] - b[common]).values
-            res = stats.ttest_rel(t[common], b[common]) if len(common) > 1 else None
-            report['tests'][f'S{S}_tbfl_vs_{agg}'] = {
-                'mean_diff_auc': round(float(diff.mean()), 4),
-                't': None if res is None else round(float(res.statistic), 3),
-                'p': None if res is None else float(res.pvalue), 'n_seeds': len(common)}
+        _, X_test, y_test, names = pickle.load(open(cp, 'rb'))
+        model = MLP(len(names)); model.load_state_dict(torch.load(mp)); model.eval()
+        with torch.no_grad():
+            p = torch.sigmoid(model(torch.as_tensor(X_test)).squeeze(1)).numpy()
+        fpr, tpr, _ = roc_curve(y_test, p)
+        prec, rec, _ = precision_recall_curve(y_test, p)
+        curves['roc'].append((fpr, tpr)); curves['pr'].append((rec, prec))
+    if curves['roc']:
+        fig, ax = panel()
+        for fpr, tpr in curves['roc']:
+            ax.plot(fpr, tpr, color=BLUE, lw=0.9, alpha=0.7)
+        ax.plot([0, 1], [0, 1], color=NEUTRAL, ls=':', lw=0.9)
+        ax.set_xlabel('False-positive rate'); ax.set_ylabel('True-positive rate')
+        ax.set_xlim(0, 1); ax.set_ylim(0, 1.01)
+        save(fig, 'clin_b_roc')
+        fig, ax = panel()
+        for rec, prec in curves['pr']:
+            ax.plot(rec, prec, color=BLUE, lw=0.9, alpha=0.7)
+        ax.axhline(prev, color=NEUTRAL, ls=':', lw=0.9)
+        ax.set_xlabel('Recall'); ax.set_ylabel('Precision'); ax.set_xlim(0, 1)
+        ax.set_ylim(0, 1.01)
+        save(fig, 'clin_c_pr')
+        rep['roc_pr_seeds'] = len(curves['roc'])
 
-    meta = json.load(open(os.path.join(RES, 'tbfl_S0_seed0_meta.json')))
-    report['dataset'] = {k: meta[k] for k in ['features', 'client_raw', 'client_pos_rate_raw',
-                                             'client_sizes_balanced', 'test_n', 'test_pos',
-                                             'deploy_gas']}
-    json.dump(report, open(os.path.join(FIG, 'report.json'), 'w'), indent=1, default=str)
-    print(json.dumps(report, indent=1, default=str))
-    print(syb.round(4).to_string())
+    # ===================== Baselines =====================
+    rep['baselines'] = {}
+    for mode in ['central_fed', 'central_adm', 'central_pat']:
+        d = load_baseline(mode)
+        if d is None:
+            continue
+        f = d[d['epoch'] == d['epoch'].max()]
+        rep['baselines'][mode] = {c: ms(f[c]) for c in ['auc', 'auprc', 'brier', 'precision',
+                                                        'recall', 'f1']}
+    loc = load_baseline('local')
+    cl_files = sorted(glob.glob(os.path.join(RES, 'tbfl_S0_seed*_clients.csv')))
+    if loc is not None and cl_files:
+        rep['baselines']['local_on_own_test'] = {
+            'auc': ms(loc.groupby('seed')['local_auc'].mean()),
+            'auprc': ms(loc.groupby('seed')['local_auprc'].mean())}
+        rep['baselines']['local_on_global_test'] = {
+            'auc': ms(loc.groupby('seed')['global_auc'].mean()),
+            'auprc': ms(loc.groupby('seed')['global_auprc'].mean())}
+        fl = pd.concat([pd.read_csv(f).assign(seed=int(f.split('seed')[1].split('_')[0]))
+                        for f in cl_files])
+        fl = fl[fl['round'] == fl['round'].max()]
+        rep['baselines']['fl_on_client_test'] = {'auc': ms(fl.groupby('seed')['auc'].mean()),
+                                                 'auprc': ms(fl.groupby('seed')['auprc'].mean())}
+        l0 = loc[loc['seed'] == 0].set_index('client')
+        f0 = fl[fl['seed'] == 0].set_index('client')
+        x = np.arange(1, len(l0) + 1); w = 0.38
+        for col, name, ylab in [('auc', 'clients_a_auc', 'AUC-ROC'),
+                                ('auprc', 'clients_b_auprc', 'AUPRC')]:
+            fig, ax = panel(W2)
+            ax.bar(x - w / 2, f0[col], w, color=BLUE)
+            ax.bar(x + w / 2, l0['local_' + col], w, color=ORANGE)
+            ax.set_xticks(x); ax.set_xlabel('Client (local test set)'); ax.set_ylabel(ylab)
+            if col == 'auc':
+                ax.set_ylim(0.5, 1)
+            ax.grid(axis='x', visible=False)
+            save(fig, name)
+        legend_strip([Patch(color=BLUE, label='Federated model (TBFL)'),
+                      Patch(color=ORANGE, label='Model trained on the client alone')],
+                     'clients_legend', ncol=2)
+        rep['clients_seed0'] = pd.DataFrame({
+            'mortality_pct': (f0['pos_rate'] * 100).round(2), 'fl_auc': f0['auc'].round(4),
+            'local_auc': l0['local_auc'].round(4), 'fl_auprc': f0['auprc'].round(4),
+            'local_auprc': l0['local_auprc'].round(4)}).reset_index().to_dict('records')
+
+    # ===================== Exp. 2/3: Sybil =====================
+    rows, curves_s = [], {}
+    for div in [0, 1]:
+        for S in [2, 5, 10, 15]:
+            for agg in AGGS:
+                d = load(agg, S, rounds=50, div=div)
+                if d.empty:
+                    continue
+                f = d[d['round'] == 50]
+                att = d[d['round'] >= 10]
+                share = (float(att['sybil_weight_share'].mean())
+                         if 'sybil_weight_share' in att else None)
+                rows.append({'div': div, 'sybils': S, 'share': S / (S + 10), 'agg': agg,
+                             'n': len(f), 'auc': ms(f['auc']), 'auprc': ms(f['auprc']),
+                             'recall': ms(f['recall']), 'fnr': ms(f['fnr']),
+                             'rejected_per_round': float(f['n_rejected'].mean()),
+                             'sybil_weight_share': share})
+                curves_s[(agg, S, div)] = d
+    rep['sybil'] = rows
+    d = load('fedavg', 0, rounds=50)
+    if not d.empty:
+        f = d[d['round'] == 50]
+        rep['fedavg_clean_r50'] = {c: ms(f[c]) for c in ['auc', 'auprc', 'recall', 'fnr']}
+    f = main_[(main_['seed'] < 3) & (main_['round'] == 50)]
+    rep['tbfl_clean_r50'] = {c: ms(f[c]) for c in ['auc', 'auprc', 'recall', 'fnr']}
+
+    present = [a for a in AGGS if any(k_[0] == a and k_[2] == 0 for k_ in curves_s)]
+    for S, lab in zip([2, 5, 10, 15], 'abcd'):
+        fig, ax = panel(W2, 1.55)
+        for agg in present:
+            if (agg, S, 0) in curves_s:
+                band(ax, curves_s[(agg, S, 0)], 'auc', COLOR[agg], marker=MARKER[agg], every=8)
+        ax.axvline(10, color=INK2, ls=':', lw=0.8)
+        ax.set_xlabel('Communication round'); ax.set_ylabel('AUC-ROC')
+        ax.set_ylim(0, 1); ax.set_xlim(1, 50)
+        save(fig, f'sybil_{lab}_S{S}')
+    legend_strip(agg_handles(present), 'sybil_legend', ncol=3)
+
+    syb = pd.DataFrame([{'div': r['div'], 'sybils': r['sybils'], 'share': r['share'],
+                         'agg': r['agg'], 'auc': r['auc']['mean'], 'sd': r['auc']['sd']}
+                        for r in rows])
+    if not syb.empty:
+        fig, ax = panel(W2, 1.75)
+        for agg in present:
+            s = syb[(syb['agg'] == agg) & (syb['div'] == 0)].sort_values('share')
+            ax.errorbar(s['share'] * 100, s['auc'], yerr=s['sd'], color=COLOR[agg],
+                        marker=MARKER[agg], capsize=2, elinewidth=0.7, markeredgewidth=0)
+        ax.axvline(50, color=INK2, ls=':', lw=0.8)
+        ax.set_xlabel('Sybil identities (% of participants)')
+        ax.set_ylabel('AUC-ROC (round 50)'); ax.set_ylim(0, 1)
+        save(fig, 'frac_a_identical')
+        adv = syb[syb['div'] == 1]
+        if not adv.empty:
+            fig, ax = panel(W2, 1.75)
+            defs = [a for a in ['foolsgold', 'median', 'trimmed', 'krum'] if a in set(adv['agg'])]
+            x = np.arange(len(defs)); w = 0.2
+            for i, (S, dv) in enumerate([(5, 0), (5, 1), (10, 0), (10, 1)]):
+                v = [syb[(syb['agg'] == a) & (syb['sybils'] == S) & (syb['div'] == dv)]['auc']
+                     .mean() for a in defs]
+                ax.bar(x + (i - 1.5) * w, v, w, color=[BLUE, ORANGE][dv],
+                       hatch=None if S == 5 else '////', edgecolor='white', lw=0)
+            short = {'foolsgold': 'FoolsGold', 'median': 'Median', 'trimmed': 'Trimmed', 'krum': 'Krum'}
+            ax.set_xticks(x, [short[a] for a in defs])
+            ax.set_ylabel('AUC-ROC (round 50)'); ax.set_ylim(0, 1)
+            ax.grid(axis='x', visible=False)
+            save(fig, 'frac_b_adaptive')
+            legend_strip([Patch(color=BLUE, label='Identical Sybils'),
+                          Patch(color=ORANGE, label='Adaptive Sybils'),
+                          Patch(facecolor='white', edgecolor=INK2, label='33% Sybils (solid)'),
+                          Patch(facecolor='white', edgecolor=INK2, hatch='////',
+                                label='50% Sybils (hatched)')], 'frac_legend', ncol=4)
+        if ('foolsgold', 5, 0) in curves_s and ('foolsgold', 5, 1) in curves_s:
+            fig, ax = panel(W2, 1.75)
+            for dv, c, lab in [(0, BLUE, 'Identical Sybils'), (1, ORANGE, 'Adaptive Sybils')]:
+                d = curves_s[('foolsgold', 5, dv)]
+                band(ax, d[d['round'] >= 10], 'sybil_weight_share', c, label=lab, every=8)
+            ax.set_xlabel('Communication round'); ax.set_ylabel('Weight given to Sybils')
+            ax.set_ylim(-0.02, 1.02); ax.set_xlim(10, 50); ax.legend(loc='center right')
+            save(fig, 'frac_c_foolsgold_weight')
+
+    # ===================== Custo e sobrecarga =====================
+    ch = pd.read_csv(os.path.join(RES, 'tbfl_S0_seed0_chain.csv'))
+    acc = ch[ch['accepted']]
+    rep['gas_by_kind'] = acc.groupby('kind')['gas'].agg(['mean', 'min', 'max', 'count']) \
+        .round(1).to_dict('index')
+    cum = acc.groupby('round')['gas'].sum().cumsum()
+    per_round = float(acc[acc['kind'] == 'submit'].groupby('round')['gas'].sum().mean())
+    total = int(cum.iloc[-1])
+    rep['gas_per_round_submissions'] = per_round
+    rep['gas_total_100_rounds'] = total
+    rep['gas_linear_r2'] = round(stats.linregress(cum.index, cum.values).rvalue ** 2, 6)
+    rep['cost_table'] = {net: {'usd_per_round': round(per_round * g * 1e-9 * ETH_USD, 4),
+                               'usd_100_rounds': round(total * g * 1e-9 * ETH_USD, 2)}
+                         for net, g in GAS_PRICE_GWEI.items()}
+    tt = main_.groupby('seed')['avg_train_time'].mean()
+    ct = main_.groupby('seed')['avg_chain_time'].mean()
+    rep['train_time_s'] = ms(tt); rep['chain_time_ms'] = ms(ct * 1e3)
+    rep['overhead_pct'] = ms(ct / tt * 100)
+
+    bench_p = os.path.join(RES, 'bench_registry.csv')
+    if os.path.exists(bench_p):
+        b = pd.read_csv(bench_p)
+        rep['bench'] = b.groupby(['contract', 'op']).agg(
+            n=('gas', 'size'), accepted=('accepted', 'sum'), gas_mean=('gas', 'mean'),
+            gas_median=('gas', 'median'), gas_max=('gas', 'max'),
+            latency_ms=('latency_s', lambda s: 1e3 * s.mean())
+        ).round(1).reset_index().to_dict('records')
+        ok = b[b['accepted']]
+        variants = ['FLRegistry', 'FLRegistryEvents', 'FLRegistryZK']
+        vlabel = {'FLRegistry': 'Allowlist', 'FLRegistryEvents': 'Allowlist with events',
+                  'FLRegistryZK': 'Signed credential (EIP-712)'}
+        vcol = [BLUE, COLOR['median'], ORANGE]
+        fig, ax = panel()
+        x = np.arange(2); w = 0.26
+        for i, v in enumerate(variants):
+            vals = [ok[(ok['contract'] == v) & (ok['op'] == o)]['gas'].median() / 1e3
+                    for o in ['authorize', 'submit']]
+            ax.bar(x + (i - 1) * w, vals, w, color=vcol[i])
+        ax.set_xticks(x, ['Authorise', 'Submit']); ax.set_ylabel(r'Gas ($\times 10^3$)')
+        ax.grid(axis='x', visible=False)
+        save(fig, 'cost_a_gas_ops')
+        legend_strip([Patch(color=c, label=vlabel[v]) for v, c in zip(variants, vcol)],
+                     'cost_legend', ncol=3)
+    fig, ax = panel()
+    for net, c in zip(GAS_PRICE_GWEI, [ORANGE, BLUE]):
+        ax.plot(cum.index, cum.values * GAS_PRICE_GWEI[net] * 1e-9 * ETH_USD, color=c, label=net)
+    ax.set_yscale('log'); ax.set_xlabel('Communication round')
+    ax.set_ylabel(r'Cumulative cost (US\$)'); ax.legend(loc='lower right'); ax.set_xlim(0, 100)
+    save(fig, 'cost_b_cumulative')
+    fig, ax = panel()
+    vals = [tt.mean(), ct.mean()]
+    ax.bar([0, 1], vals, color=[BLUE, ORANGE], width=0.6)
+    ax.set_yscale('log'); ax.set_xticks([0, 1], ['Local\ntraining', 'On-chain\ncommitment'])
+    ax.set_ylabel('Time per client and round (s)'); ax.grid(axis='x', visible=False)
+    for i, v in enumerate(vals):
+        ax.text(i, v * 1.3, f'{v:.2f} s' if v >= 1 else f'{v * 1e3:.0f} ms', ha='center',
+                fontsize=7, color=INK)
+    ax.set_ylim(0.01, 30)
+    save(fig, 'cost_c_time')
+
+    json.dump(rep, open(os.path.join(FIG, 'report.json'), 'w'), indent=1, default=str)
+    print(json.dumps({k_: v for k_, v in rep.items() if k_ not in ('dataset', 'bench', 'sybil')},
+                     indent=1, default=str)[:6000])
+    print(pd.DataFrame([{'div': r['div'], 'S': r['sybils'], 'agg': r['agg'], 'n': r['n'],
+                         'auc': r['auc']['fmt'], 'w_syb': r['sybil_weight_share']}
+                        for r in rows]).to_string())
 
 
 if __name__ == '__main__':

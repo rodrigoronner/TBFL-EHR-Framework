@@ -4,6 +4,7 @@ Executa uma simulação federada (v2).
   --agg tbfl     FedAvg ponderado + verificação de identidade on-chain (proposto)
   --agg fedavg   FedAvg ponderado sem verificação (baseline desprotegido)
   --agg median | trimmed | krum   agregadores robustos sem verificação
+  --agg foolsgold                 defesa anti-Sybil por similaridade (Fung et al., 2020)
 
 Exemplo:
   python run_experiment.py --agg tbfl --sybils 5 --seed 0 --rounds 100
@@ -20,7 +21,7 @@ import torch
 
 from tbfl_data import build_federation
 from tbfl_fl import (MLP, get_flat, set_flat, train_fedprox, evaluate, sybil_updates,
-                     agg_fedavg, agg_median, agg_trimmed_mean, agg_krum)
+                     agg_fedavg, agg_median, agg_trimmed_mean, agg_krum, agg_foolsgold)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -38,9 +39,11 @@ def load_federation(csv, n_clients, alpha, seed, cache_dir):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--agg', default='tbfl',
-                    choices=['tbfl', 'fedavg', 'median', 'trimmed', 'krum'])
+                    choices=['tbfl', 'fedavg', 'median', 'trimmed', 'krum', 'foolsgold'])
     ap.add_argument('--sybils', type=int, default=0)
     ap.add_argument('--attack_start', type=int, default=10)
+    ap.add_argument('--sybil_diversity', type=float, default=0.0,
+                    help='0 = Sybils idênticos; >0 = ataque adaptativo (ruído próprio por Sybil)')
     ap.add_argument('--seed', type=int, default=0)
     ap.add_argument('--rounds', type=int, default=100)
     ap.add_argument('--clients', type=int, default=10)
@@ -85,12 +88,14 @@ def main():
         for addr in honest_addr:
             chain.authorize(addr, 0)
 
-    tag = f'{a.agg}_S{a.sybils}_seed{a.seed}'
+    div = f'_div{a.sybil_diversity:g}' if a.sybil_diversity > 0 else ''
+    tag = f'{a.agg}_S{a.sybils}{div}_seed{a.seed}'
+    fg_history = {}
     os.makedirs(a.out, exist_ok=True)
     history, client_hist = [], []
 
     for r in range(1, a.rounds + 1):
-        updates, weights, train_t, chain_t = [], [], [], []
+        updates, weights, ids, train_t, chain_t = [], [], [], [], []
         for k, c in enumerate(clients):
             local = MLP(len(names))
             set_flat(local, global_flat)
@@ -105,11 +110,12 @@ def main():
                     continue
             updates.append(w)
             weights.append(sizes[k])
+            ids.append(k)
 
         attacking = a.sybils > 0 and r >= a.attack_start
         n_rejected = 0
         if attacking:
-            syb = sybil_updates(a.sybils, dim, gen)
+            syb = sybil_updates(a.sybils, dim, gen, a.sybil_diversity)
             for j, v in enumerate(syb):
                 if chain is not None:
                     if r == a.attack_start:
@@ -119,6 +125,7 @@ def main():
                         continue
                 updates.append(v)
                 weights.append(claimed)
+                ids.append(n_honest + j)
 
         if a.agg in ('tbfl', 'fedavg'):
             global_flat = agg_fedavg(updates, weights)
@@ -129,10 +136,23 @@ def main():
             global_flat = agg_trimmed_mean(updates, beta=beta)
         elif a.agg == 'krum':
             global_flat = agg_krum(updates, f=a.sybils if attacking else 1)
+        elif a.agg == 'foolsgold':
+            global_flat, fg_w = agg_foolsgold(updates, global_flat, fg_history, ids)
+
+        # Fração do peso de agregação efetivamente atribuída a identidades Sybil
+        if a.agg == 'foolsgold':
+            wts = np.asarray(fg_w, dtype=float)
+        elif a.agg in ('tbfl', 'fedavg'):
+            wts = np.asarray(weights, dtype=float)
+        else:
+            wts = None
+        sybil_share = (float(wts[[i >= n_honest for i in ids]].sum() / wts.sum())
+                       if wts is not None and wts.sum() > 0 else float('nan'))
 
         set_flat(model, global_flat)
         m = evaluate(model, X_test, y_test)
         m.update(round=r, n_aggregated=len(updates), n_rejected=n_rejected,
+                 sybil_weight_share=sybil_share,
                  avg_train_time=float(np.mean(train_t)),
                  avg_chain_time=float(np.mean(chain_t)) if chain_t else 0.0)
         history.append(m)

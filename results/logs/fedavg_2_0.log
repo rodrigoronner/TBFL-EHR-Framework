@@ -1,0 +1,5 @@
+[fedavg_S2_seed0] R10: AUC=0.8305 AUPRC=0.1170 Rec=0.071 Prec=0.214 agg=12
+[fedavg_S2_seed0] R20: AUC=0.7874 AUPRC=0.0903 Rec=0.425 Prec=0.079 agg=12
+[fedavg_S2_seed0] R30: AUC=0.7812 AUPRC=0.0680 Rec=0.300 Prec=0.081 agg=12
+[fedavg_S2_seed0] R40: AUC=0.8433 AUPRC=0.1233 Rec=0.217 Prec=0.179 agg=12
+[fedavg_S2_seed0] R50: AUC=0.8229 AUPRC=0.0947 Rec=0.605 Prec=0.076 agg=12

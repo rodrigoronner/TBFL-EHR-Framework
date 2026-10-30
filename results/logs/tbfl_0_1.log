@@ -1,0 +1,10 @@
+[tbfl_S0_seed1] R10: AUC=0.8945 AUPRC=0.2095 Rec=0.818 Prec=0.081 agg=10
+[tbfl_S0_seed1] R20: AUC=0.8931 AUPRC=0.2035 Rec=0.819 Prec=0.081 agg=10
+[tbfl_S0_seed1] R30: AUC=0.8923 AUPRC=0.2043 Rec=0.828 Prec=0.077 agg=10
+[tbfl_S0_seed1] R40: AUC=0.8902 AUPRC=0.2032 Rec=0.817 Prec=0.081 agg=10
+[tbfl_S0_seed1] R50: AUC=0.8922 AUPRC=0.2063 Rec=0.798 Prec=0.088 agg=10
+[tbfl_S0_seed1] R60: AUC=0.8883 AUPRC=0.1990 Rec=0.782 Prec=0.090 agg=10
+[tbfl_S0_seed1] R70: AUC=0.8868 AUPRC=0.2001 Rec=0.798 Prec=0.081 agg=10
+[tbfl_S0_seed1] R80: AUC=0.8901 AUPRC=0.2008 Rec=0.797 Prec=0.086 agg=10
+[tbfl_S0_seed1] R90: AUC=0.8880 AUPRC=0.1967 Rec=0.778 Prec=0.090 agg=10
+[tbfl_S0_seed1] R100: AUC=0.8891 AUPRC=0.1984 Rec=0.790 Prec=0.088 agg=10

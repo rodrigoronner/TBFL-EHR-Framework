@@ -42,10 +42,31 @@ class Bench:
             rcpt = self.w3.eth.wait_for_transaction_receipt(fn.transact({'from': sender}))
             ok, gas = rcpt.status == 1, rcpt.gasUsed
         except Exception:
-            ok, gas = False, 0  # revert na estimativa de gas: não minerada
+            rcpt, ok, gas = None, False, 0  # revert na estimativa de gas: não minerada
         self.log.append({'contract': self.name, 'op': op, 'accepted': ok, 'gas': gas,
                          'latency_s': time.perf_counter() - t0})
+        self.last_rcpt = rcpt if ok else None
         return ok
+
+    def verify(self, rcpt, sender, update):
+        """Verificação do agregador (G4): compromisso admitido, remetente e SHA-256 da atualização."""
+        if rcpt is None or rcpt['from'] != sender:
+            return False
+        ev = self.c.events.ModelUpdated().process_receipt(rcpt)
+        return len(ev) == 1 and ev[0]['args']['newHash'] == hashlib.sha256(update).hexdigest()
+
+    def binding_tests(self, worker, other, rng):
+        """Casos de G4: atualização entregue íntegra, substituída e atribuída a outro remetente."""
+        w = rng.standard_normal(4225).astype(np.float32).tobytes()
+        self.send('submit', self.c.functions.submitUpdate(hashlib.sha256(w).hexdigest()), worker)
+        rcpt = self.last_rcpt
+        w_sub = rng.standard_normal(4225).astype(np.float32).tobytes()
+        for op, sender, upd in [('update_matching_commitment', worker, w),
+                                ('update_substituted_after_commit', worker, w_sub),
+                                ('update_claimed_by_other_sender', other, w)]:
+            self.log.append({'contract': self.name, 'op': op,
+                             'accepted': self.verify(rcpt, sender, upd), 'gas': 0,
+                             'latency_s': np.nan})
 
 
 def sign_vc(w3, contract, issuer, subject, expires_at):
@@ -94,6 +115,7 @@ def main():
             for wk in workers:
                 b.send('submit', b.c.functions.submitUpdate(digest(rng)), wk)
             b.send('sybil_submit', b.c.functions.submitUpdate(digest(rng)), attacker)
+        b.binding_tests(workers[0], workers[1], rng)
         logs += b.log
 
     # Credencial assinada: qualquer um retransmite a VC; o contrato verifica a assinatura
@@ -115,6 +137,7 @@ def main():
         b.send('sybil_submit', b.c.functions.submitUpdate(digest(rng)), attacker)
     b.send('revoke', b.c.functions.revokeCredential(workers[-1]), issuer)
     b.send('submit_after_revocation', b.c.functions.submitUpdate(digest(rng)), workers[-1])
+    b.binding_tests(workers[0], workers[1], rng)
     logs += b.log
 
     df = pd.DataFrame(logs)

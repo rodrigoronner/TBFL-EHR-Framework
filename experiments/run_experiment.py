@@ -96,6 +96,7 @@ def main():
 
     for r in range(1, a.rounds + 1):
         updates, weights, ids, train_t, chain_t = [], [], [], [], []
+        n_mismatch = 0
         for k, c in enumerate(clients):
             local = MLP(len(names))
             set_flat(local, global_flat)
@@ -104,9 +105,13 @@ def main():
             train_t.append(time.perf_counter() - t0)
             if chain is not None:
                 t1 = time.perf_counter()
-                ok = chain.submit(honest_addr[k], w, r)
+                rcpt = chain.submit(honest_addr[k], w, r)
                 chain_t.append(time.perf_counter() - t1)
-                if not ok:
+                if rcpt is None:
+                    continue
+                # O agregador só usa a atualização se ela corresponder ao compromisso admitido
+                if not chain.verify(rcpt, honest_addr[k], w):
+                    n_mismatch += 1
                     continue
             updates.append(w)
             weights.append(sizes[k])
@@ -120,7 +125,8 @@ def main():
                 if chain is not None:
                     if r == a.attack_start:
                         chain.self_authorize(sybil_addr[j], r)
-                    if not chain.submit(sybil_addr[j], v, r, kind='sybil_submit'):
+                    rcpt = chain.submit(sybil_addr[j], v, r, kind='sybil_submit')
+                    if rcpt is None or not chain.verify(rcpt, sybil_addr[j], v):
                         n_rejected += 1
                         continue
                 updates.append(v)
@@ -152,6 +158,7 @@ def main():
         set_flat(model, global_flat)
         m = evaluate(model, X_test, y_test)
         m.update(round=r, n_aggregated=len(updates), n_rejected=n_rejected,
+                 n_hash_mismatch=n_mismatch,
                  sybil_weight_share=sybil_share,
                  avg_train_time=float(np.mean(train_t)),
                  avg_chain_time=float(np.mean(chain_t)) if chain_t else 0.0)

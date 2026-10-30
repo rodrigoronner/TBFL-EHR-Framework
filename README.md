@@ -70,6 +70,26 @@ python run_experiment.py --agg tbfl --sybils 5 --seed 0 --rounds 50
 
 `results/` holds per-round metrics, on-chain transaction logs and run metadata for every run. Model checkpoints (`*.pt`) are not published because they are trained on MIMIC-IV. Without them, `make_figures.py` regenerates every panel except the ROC and precision–recall curves (`clin_b_roc`, `clin_c_pr`), which are included in `figures/` as generated locally.
 
+## Public testnet deployments
+
+The allowlist (`FLRegistry`) and signed-credential (`FLRegistryZK`) registries were deployed on two public test networks in October 2026. Every deployment, authorisation, admitted commitment, `ModelUpdated` event and revocation can be inspected on the block explorers. Rejected attack attempts revert during gas estimation and are never mined, so they appear only in `results/testnet_*.csv`.
+
+| Network | Registry | Contract |
+|---|---|---|
+| Ethereum Sepolia | `FLRegistry` | [`0xC15a68e0605614Ff4a7C7EEb4f81274A170BBf11`](https://sepolia.etherscan.io/address/0xC15a68e0605614Ff4a7C7EEb4f81274A170BBf11) |
+| Ethereum Sepolia | `FLRegistryZK` | [`0xCec575aF1b32b6311f36BF17dE60f87dEA843058`](https://sepolia.etherscan.io/address/0xCec575aF1b32b6311f36BF17dE60f87dEA843058) |
+| Arbitrum Sepolia | `FLRegistry` | [`0x8c1f1B80f30f0f0C4EA1CAf72A59916e8b144f1f`](https://sepolia.arbiscan.io/address/0x8c1f1B80f30f0f0C4EA1CAf72A59916e8b144f1f) |
+| Arbitrum Sepolia | `FLRegistryZK` | [`0xC15a68e0605614Ff4a7C7EEb4f81274A170BBf11`](https://sepolia.arbiscan.io/address/0xC15a68e0605614Ff4a7C7EEb4f81274A170BBf11) |
+
+To check that these contracts were created from the code in this repository, without relying on an explorer:
+
+```bash
+npx hardhat compile                      # reproduces the bytecode in experiments/*.json from contracts/
+cd experiments && python verify_deployments.py
+```
+
+`verify_deployments.py` fetches each creation transaction from a public RPC endpoint and confirms that its data equal the released bytecode plus the constructor arguments, that it created the listed address and that it was sent by the issuer. To repeat the benchmark with your own funded key: `TBFL_TESTNET_KEY=... python testnet_bench.py --network sepolia` (or `arbsepolia`).
+
 ## Experimental setup (summary)
 
 | | |

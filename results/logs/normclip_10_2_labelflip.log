@@ -1,0 +1,5 @@
+[normclip_S10_flip_seed2] R10: AUC=0.5883 AUPRC=0.0242 Rec=0.673 Prec=0.029 agg=20
+[normclip_S10_flip_seed2] R20: AUC=0.2760 AUPRC=0.0135 Rec=0.297 Prec=0.010 agg=20
+[normclip_S10_flip_seed2] R30: AUC=0.2919 AUPRC=0.0137 Rec=0.282 Prec=0.010 agg=20
+[normclip_S10_flip_seed2] R40: AUC=0.2653 AUPRC=0.0133 Rec=0.237 Prec=0.009 agg=20
+[normclip_S10_flip_seed2] R50: AUC=0.2328 AUPRC=0.0128 Rec=0.169 Prec=0.006 agg=20

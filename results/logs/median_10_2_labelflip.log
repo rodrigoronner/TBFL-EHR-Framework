@@ -1,0 +1,5 @@
+[median_S10_flip_seed2] R10: AUC=0.4807 AUPRC=0.0215 Rec=0.972 Prec=0.023 agg=20
+[median_S10_flip_seed2] R20: AUC=0.2642 AUPRC=0.0133 Rec=0.483 Prec=0.012 agg=20
+[median_S10_flip_seed2] R30: AUC=0.2423 AUPRC=0.0129 Rec=0.671 Prec=0.015 agg=20
+[median_S10_flip_seed2] R40: AUC=0.2105 AUPRC=0.0124 Rec=0.679 Prec=0.016 agg=20
+[median_S10_flip_seed2] R50: AUC=0.2108 AUPRC=0.0124 Rec=0.481 Prec=0.012 agg=20

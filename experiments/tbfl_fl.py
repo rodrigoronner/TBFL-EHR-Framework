@@ -88,6 +88,18 @@ def agg_krum(updates, weights=None, f=1):
     return U[scores.argmin()].clone()
 
 
+def agg_normclip(updates, weights, global_flat):
+    """
+    Norm bounding: limita a norma de cada delta à mediana das normas da rodada e aplica o
+    FedAvg ponderado aos deltas limitados (defesa por conteúdo simples, sem parâmetro f).
+    """
+    deltas = [u - global_flat for u in updates]
+    norms = torch.stack([d.norm() for d in deltas])
+    tau = norms.median()
+    clipped = [d * torch.clamp(tau / (n + 1e-12), max=1.0) for d, n in zip(deltas, norms)]
+    return global_flat + agg_fedavg(clipped, weights)
+
+
 def agg_foolsgold(updates, global_flat, history, ids):
     """
     FoolsGold (Fung et al., RAID 2020): pesos por participante a partir da similaridade

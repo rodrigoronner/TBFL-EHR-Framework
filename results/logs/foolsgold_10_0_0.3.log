@@ -1,0 +1,5 @@
+[foolsgold_S10_div0.3_seed0] R10: AUC=0.8981 AUPRC=0.1973 Rec=0.837 Prec=0.077 agg=20
+[foolsgold_S10_div0.3_seed0] R20: AUC=0.8970 AUPRC=0.1998 Rec=0.817 Prec=0.083 agg=20
+[foolsgold_S10_div0.3_seed0] R30: AUC=0.8959 AUPRC=0.2078 Rec=0.815 Prec=0.082 agg=20
+[foolsgold_S10_div0.3_seed0] R40: AUC=0.8946 AUPRC=0.2074 Rec=0.794 Prec=0.088 agg=20
+[foolsgold_S10_div0.3_seed0] R50: AUC=0.8951 AUPRC=0.2067 Rec=0.803 Prec=0.088 agg=20

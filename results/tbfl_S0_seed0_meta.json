@@ -13,7 +13,7 @@
  "per_client": true,
  "account_offset": 0,
  "csv": "data/mortalidade_features.csv",
- "cache": "/private/tmp/claude-501/-Users-rodrigotertulino-Library-CloudStorage-OneDrive-IFRN-Periodicos-Trustworthy-Blockchain-based-Federated-Learning-for-EHR/9755bda4-5371-4c76-8b97-c6f7a19c3346/scratchpad/cache",
+ "cache": "cache",
  "out": "results",
  "features": [
   "age",

@@ -5,6 +5,9 @@ Executa uma simulação federada (v2).
   --agg fedavg   FedAvg ponderado sem verificação (baseline desprotegido)
   --agg median | trimmed | krum   agregadores robustos sem verificação
   --agg foolsgold                 defesa anti-Sybil por similaridade (Fung et al., 2020)
+  --agg normclip                  limite de norma dos deltas (mediana da rodada) + FedAvg
+  --agg tbfl --rule median        gate de identidade combinado com uma regra robusta
+  --sybil_mode labelflip          Sybils plausíveis: treinam o modelo global com rótulos invertidos
 
 Exemplo:
   python run_experiment.py --agg tbfl --sybils 5 --seed 0 --rounds 100
@@ -21,17 +24,18 @@ import torch
 
 from tbfl_data import build_federation
 from tbfl_fl import (MLP, get_flat, set_flat, train_fedprox, evaluate, sybil_updates,
-                     agg_fedavg, agg_median, agg_trimmed_mean, agg_krum, agg_foolsgold)
+                     agg_fedavg, agg_median, agg_trimmed_mean, agg_krum, agg_foolsgold, agg_normclip)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
-def load_federation(csv, n_clients, alpha, seed, cache_dir):
+def load_federation(csv, n_clients, alpha, seed, cache_dir, val_frac=0.0):
     os.makedirs(cache_dir, exist_ok=True)
-    path = os.path.join(cache_dir, f'fed_k{n_clients}_a{alpha}_s{seed}.pkl')
+    val = f'_v{val_frac:g}' if val_frac > 0 else ''
+    path = os.path.join(cache_dir, f'fed_k{n_clients}_a{alpha}_s{seed}{val}.pkl')
     if os.path.exists(path):
         return pickle.load(open(path, 'rb'))
-    fed = build_federation(csv, n_clients, alpha, seed)
+    fed = build_federation(csv, n_clients, alpha, seed, val_frac=val_frac)
     pickle.dump(fed, open(path, 'wb'))
     return fed
 
@@ -39,7 +43,14 @@ def load_federation(csv, n_clients, alpha, seed, cache_dir):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--agg', default='tbfl',
-                    choices=['tbfl', 'fedavg', 'median', 'trimmed', 'krum', 'foolsgold'])
+                    choices=['tbfl', 'fedavg', 'median', 'trimmed', 'krum', 'foolsgold',
+                             'normclip'])
+    ap.add_argument('--rule', default='fedavg', choices=['fedavg', 'median', 'trimmed', 'krum'],
+                    help='regra de agregação aplicada às atualizações admitidas pelo gate (tbfl)')
+    ap.add_argument('--sybil_mode', default='random', choices=['random', 'labelflip'],
+                    help='random = vetor N(0, I); labelflip = treino com rótulos invertidos')
+    ap.add_argument('--sybil_samples', type=int, default=5000,
+                    help='amostras de treino de cada Sybil no modo labelflip')
     ap.add_argument('--sybils', type=int, default=0)
     ap.add_argument('--attack_start', type=int, default=10)
     ap.add_argument('--sybil_diversity', type=float, default=0.0,
@@ -55,6 +66,8 @@ def main():
     ap.add_argument('--per_client', action='store_true',
                     help='avalia o modelo global no teste local de cada cliente')
     ap.add_argument('--account_offset', type=int, default=0)
+    ap.add_argument('--val_frac', type=float, default=0.0,
+                    help='fração do treino de cada cliente reservada para validação (parada antecipada)')
     ap.add_argument('--csv', default=os.path.join(HERE, '..', 'data', 'mortalidade_features.csv'))
     ap.add_argument('--cache', default=os.environ.get('TBFL_CACHE', os.path.join(HERE, '..', 'data', 'cache')))
     ap.add_argument('--out', default=os.path.join(HERE, '..', 'results'))
@@ -66,7 +79,11 @@ def main():
     gen = torch.Generator().manual_seed(a.seed)
     args = {'local_ep': a.local_ep, 'bs': a.bs, 'lr': a.lr, 'mu': a.mu}
 
-    clients, X_test, y_test, names = load_federation(a.csv, a.clients, a.alpha, a.seed, a.cache)
+    clients, X_test, y_test, names = load_federation(a.csv, a.clients, a.alpha, a.seed, a.cache,
+                                                     a.val_frac)
+    if a.val_frac > 0:
+        X_val = np.concatenate([c['X_val'] for c in clients])
+        y_val = np.concatenate([c['y_val'] for c in clients])
     for c in clients:
         c['Xt'] = torch.as_tensor(c['X_train'])
         c['yt'] = torch.as_tensor(c['y_train'])
@@ -89,7 +106,10 @@ def main():
             chain.authorize(addr, 0)
 
     div = f'_div{a.sybil_diversity:g}' if a.sybil_diversity > 0 else ''
-    tag = f'{a.agg}_S{a.sybils}{div}_seed{a.seed}'
+    rule = f'-{a.rule}' if a.agg == 'tbfl' and a.rule != 'fedavg' else ''
+    mode = '_flip' if a.sybil_mode == 'labelflip' else ''
+    val = f'_val{a.val_frac:g}' if a.val_frac > 0 else ''
+    tag = f'{a.agg}{rule}_S{a.sybils}{div}{mode}{val}_seed{a.seed}'
     fg_history = {}
     os.makedirs(a.out, exist_ok=True)
     history, client_hist = [], []
@@ -120,7 +140,19 @@ def main():
         attacking = a.sybils > 0 and r >= a.attack_start
         n_rejected = 0
         if attacking:
-            syb = sybil_updates(a.sybils, dim, gen, a.sybil_diversity)
+            if a.sybil_mode == 'labelflip':
+                # O adversário dispõe de dados da mesma distribuição (aqui, amostras do treino
+                # de um cliente) e treina o modelo global com os rótulos invertidos
+                syb = []
+                for j in range(a.sybils):
+                    c = clients[j % n_honest]
+                    idx = torch.randperm(len(c['yt']), generator=gen)[:a.sybil_samples]
+                    local = MLP(len(names))
+                    set_flat(local, global_flat)
+                    syb.append(train_fedprox(local, c['Xt'][idx], 1 - c['yt'][idx],
+                                             global_flat, args, gen))
+            else:
+                syb = sybil_updates(a.sybils, dim, gen, a.sybil_diversity)
             for j, v in enumerate(syb):
                 if chain is not None:
                     if r == a.attack_start:
@@ -133,22 +165,27 @@ def main():
                 weights.append(claimed)
                 ids.append(n_honest + j)
 
-        if a.agg in ('tbfl', 'fedavg'):
+        # Com o gate, nenhum Sybil chega ao agregador: a regra usa os parâmetros sem ataque
+        rule_now = a.rule if a.agg == 'tbfl' else a.agg
+        tuned = attacking and a.agg != 'tbfl'
+        if rule_now in ('tbfl', 'fedavg'):
             global_flat = agg_fedavg(updates, weights)
-        elif a.agg == 'median':
+        elif rule_now == 'median':
             global_flat = agg_median(updates)
-        elif a.agg == 'trimmed':
-            beta = min(max(a.sybils, 1) / len(updates), 0.49) if attacking else 0.1
+        elif rule_now == 'trimmed':
+            beta = min(max(a.sybils, 1) / len(updates), 0.49) if tuned else 0.1
             global_flat = agg_trimmed_mean(updates, beta=beta)
-        elif a.agg == 'krum':
-            global_flat = agg_krum(updates, f=a.sybils if attacking else 1)
+        elif rule_now == 'krum':
+            global_flat = agg_krum(updates, f=a.sybils if tuned else 1)
+        elif rule_now == 'normclip':
+            global_flat = agg_normclip(updates, weights, global_flat)
         elif a.agg == 'foolsgold':
             global_flat, fg_w = agg_foolsgold(updates, global_flat, fg_history, ids)
 
         # Fração do peso de agregação efetivamente atribuída a identidades Sybil
         if a.agg == 'foolsgold':
             wts = np.asarray(fg_w, dtype=float)
-        elif a.agg in ('tbfl', 'fedavg'):
+        elif rule_now in ('fedavg', 'normclip'):
             wts = np.asarray(weights, dtype=float)
         else:
             wts = None
@@ -157,6 +194,9 @@ def main():
 
         set_flat(model, global_flat)
         m = evaluate(model, X_test, y_test)
+        if a.val_frac > 0:
+            mv = evaluate(model, X_val, y_val)
+            m.update(val_auc=mv['auc'], val_auprc=mv['auprc'])
         m.update(round=r, n_aggregated=len(updates), n_rejected=n_rejected,
                  n_hash_mismatch=n_mismatch,
                  sybil_weight_share=sybil_share,

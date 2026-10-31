@@ -1,0 +1,5 @@
+[trimmed_S2_seed4] R10: AUC=0.8973 AUPRC=0.2176 Rec=0.848 Prec=0.078 agg=12
+[trimmed_S2_seed4] R20: AUC=0.8924 AUPRC=0.2176 Rec=0.856 Prec=0.073 agg=12
+[trimmed_S2_seed4] R30: AUC=0.8928 AUPRC=0.2208 Rec=0.834 Prec=0.078 agg=12
+[trimmed_S2_seed4] R40: AUC=0.8893 AUPRC=0.2114 Rec=0.823 Prec=0.080 agg=12
+[trimmed_S2_seed4] R50: AUC=0.8908 AUPRC=0.2088 Rec=0.817 Prec=0.084 agg=12

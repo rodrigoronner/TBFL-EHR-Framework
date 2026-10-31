@@ -1,0 +1,5 @@
+[normclip_S2_seed1] R10: AUC=0.8955 AUPRC=0.2102 Rec=0.838 Prec=0.078 agg=12
+[normclip_S2_seed1] R20: AUC=0.8948 AUPRC=0.2070 Rec=0.845 Prec=0.075 agg=12
+[normclip_S2_seed1] R30: AUC=0.8931 AUPRC=0.2030 Rec=0.810 Prec=0.084 agg=12
+[normclip_S2_seed1] R40: AUC=0.8930 AUPRC=0.2046 Rec=0.822 Prec=0.079 agg=12
+[normclip_S2_seed1] R50: AUC=0.8928 AUPRC=0.2046 Rec=0.808 Prec=0.085 agg=12

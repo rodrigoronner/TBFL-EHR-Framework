@@ -1,0 +1,5 @@
+[tbfl_S15_seed4] R10: AUC=0.8969 AUPRC=0.2209 Rec=0.847 Prec=0.078 agg=10
+[tbfl_S15_seed4] R20: AUC=0.8940 AUPRC=0.2156 Rec=0.832 Prec=0.081 agg=10
+[tbfl_S15_seed4] R30: AUC=0.8932 AUPRC=0.2132 Rec=0.818 Prec=0.085 agg=10
+[tbfl_S15_seed4] R40: AUC=0.8924 AUPRC=0.2124 Rec=0.821 Prec=0.084 agg=10
+[tbfl_S15_seed4] R50: AUC=0.8905 AUPRC=0.2098 Rec=0.817 Prec=0.084 agg=10

@@ -14,7 +14,7 @@
  "per_client": false,
  "account_offset": 0,
  "csv": "data/mortalidade_features.csv",
- "cache": "data/cache",
+ "cache": "cache",
  "out": "results",
  "features": [
   "age",

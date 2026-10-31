@@ -1,0 +1,5 @@
+[fedavg_S5_flip_seed0] R10: AUC=0.7746 AUPRC=0.0608 Rec=0.962 Prec=0.037 agg=15
+[fedavg_S5_flip_seed0] R20: AUC=0.8384 AUPRC=0.0835 Rec=0.919 Prec=0.050 agg=15
+[fedavg_S5_flip_seed0] R30: AUC=0.8413 AUPRC=0.0896 Rec=0.915 Prec=0.050 agg=15
+[fedavg_S5_flip_seed0] R40: AUC=0.8188 AUPRC=0.0678 Rec=0.864 Prec=0.054 agg=15
+[fedavg_S5_flip_seed0] R50: AUC=0.8470 AUPRC=0.0936 Rec=0.855 Prec=0.060 agg=15

@@ -1,0 +1,5 @@
+[krum_S15_seed4] R10: AUC=0.2158 AUPRC=0.0159 Rec=0.000 Prec=0.000 agg=25
+[krum_S15_seed4] R20: AUC=0.2561 AUPRC=0.0144 Rec=0.145 Prec=0.010 agg=25
+[krum_S15_seed4] R30: AUC=0.2162 AUPRC=0.0127 Rec=0.188 Prec=0.007 agg=25
+[krum_S15_seed4] R40: AUC=0.5707 AUPRC=0.0377 Rec=0.266 Prec=0.048 agg=25
+[krum_S15_seed4] R50: AUC=0.5358 AUPRC=0.0235 Rec=0.909 Prec=0.022 agg=25

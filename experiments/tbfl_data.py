@@ -69,7 +69,7 @@ def dirichlet_partition(y, n_clients, alpha, rng, min_pos=50, min_size=2000):
             return [np.array(p) for p in parts]
 
 
-def build_federation(csv_path, n_clients=10, alpha=0.5, seed=0, test_size=0.2):
+def build_federation(csv_path, n_clients=10, alpha=0.5, seed=0, test_size=0.2, val_frac=0.0):
     rng = np.random.default_rng(seed)
     X, y, names = load_features(csv_path)
     parts = dirichlet_partition(y, n_clients, alpha, rng)
@@ -78,7 +78,13 @@ def build_federation(csv_path, n_clients=10, alpha=0.5, seed=0, test_size=0.2):
     for k, idx in enumerate(parts):
         tr, te = train_test_split(idx, test_size=test_size, stratify=y[idx],
                                   random_state=seed + k)
-        clients.append({'train_idx': tr, 'test_idx': te})
+        c = {'train_idx': tr, 'test_idx': te}
+        if val_frac > 0:
+            # Validação separada do treino antes do SMOTETomek, com a prevalência real
+            # (usada apenas para escolher a rodada de parada; o teste não é consultado)
+            c['train_idx'], c['val_idx'] = train_test_split(
+                tr, test_size=val_frac, stratify=y[tr], random_state=seed + k + 100)
+        clients.append(c)
 
     # Padronização com média/desvio agregados apenas dos treinos
     # (em produção, obtidos por agregação segura de estatísticas suficientes)
@@ -96,6 +102,9 @@ def build_federation(csv_path, n_clients=10, alpha=0.5, seed=0, test_size=0.2):
         X_bal, y_bal = smt.fit_resample(X_tr, y_tr)
         c['X_train'], c['y_train'] = X_bal.astype(np.float32), y_bal.astype(np.float32)
         c['X_test'], c['y_test'] = X[c['test_idx']], y[c['test_idx']].astype(np.float32)
+        if 'val_idx' in c:
+            c['X_val'], c['y_val'] = X[c['val_idx']], y[c['val_idx']].astype(np.float32)
+            del c['val_idx']
         del c['train_idx'], c['test_idx']
 
     X_test = np.concatenate([c['X_test'] for c in clients])

@@ -1,0 +1,10 @@
+[fedavg_S0_val0.1_seed1] R10: AUC=0.8972 AUPRC=0.2053 Rec=0.844 Prec=0.078 agg=10
+[fedavg_S0_val0.1_seed1] R20: AUC=0.8931 AUPRC=0.2044 Rec=0.821 Prec=0.080 agg=10
+[fedavg_S0_val0.1_seed1] R30: AUC=0.8918 AUPRC=0.2052 Rec=0.816 Prec=0.082 agg=10
+[fedavg_S0_val0.1_seed1] R40: AUC=0.8916 AUPRC=0.2040 Rec=0.798 Prec=0.088 agg=10
+[fedavg_S0_val0.1_seed1] R50: AUC=0.8922 AUPRC=0.2051 Rec=0.778 Prec=0.095 agg=10
+[fedavg_S0_val0.1_seed1] R60: AUC=0.8882 AUPRC=0.1986 Rec=0.783 Prec=0.088 agg=10
+[fedavg_S0_val0.1_seed1] R70: AUC=0.8894 AUPRC=0.2057 Rec=0.783 Prec=0.089 agg=10
+[fedavg_S0_val0.1_seed1] R80: AUC=0.8880 AUPRC=0.2008 Rec=0.781 Prec=0.088 agg=10
+[fedavg_S0_val0.1_seed1] R90: AUC=0.8883 AUPRC=0.2031 Rec=0.789 Prec=0.087 agg=10
+[fedavg_S0_val0.1_seed1] R100: AUC=0.8877 AUPRC=0.1982 Rec=0.784 Prec=0.089 agg=10

@@ -448,7 +448,7 @@ def main():
             vals = [ok[(ok['contract'] == v) & (ok['op'] == o)]['gas'].median() / 1e3
                     for o in ['authorize', 'submit']]
             ax.bar(x + (i - 1) * w, vals, w, color=vcol[i])
-        ax.set_xticks(x, ['Authorise', 'Submit']); ax.set_ylabel(r'Gas ($\times 10^3$)')
+        ax.set_xticks(x, ['Authorize', 'Submit']); ax.set_ylabel(r'Gas ($\times 10^3$)')
         ax.grid(axis='x', visible=False)
         save(fig, 'cost_a_gas_ops')
         legend_strip([Patch(color=c, label=vlabel[v]) for v, c in zip(variants, vcol)],

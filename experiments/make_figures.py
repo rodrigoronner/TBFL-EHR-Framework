@@ -472,12 +472,79 @@ def main():
     ax.set_ylim(0.01, 30)
     save(fig, 'cost_c_time')
 
+    rep['heat_sybil'] = heatmap_sybil()
     json.dump(rep, open(os.path.join(FIG, 'report.json'), 'w'), indent=1, default=str)
     print(json.dumps({k_: v for k_, v in rep.items() if k_ not in ('dataset', 'bench', 'sybil')},
                      indent=1, default=str)[:6000])
     print(pd.DataFrame([{'div': r['div'], 'S': r['sybils'], 'agg': r['agg'], 'n': r['n'],
                          'auc': r['auc']['fmt'], 'w_syb': r['sybil_weight_share']}
                         for r in rows]).to_string())
+
+
+def heatmap_sybil():
+    """Mapa de calor da AUC na rodada 50: defesa x condição de ataque (substitui a tabela tab:sybil)."""
+    from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm
+
+    def cell(agg, S, div=0):
+        d = load(agg, S, div=div)
+        if d.empty:
+            return None
+        return ms(d[d['round'] == 50].groupby('seed')['auc'].first().values)
+
+    rows = [('fedavg', 'FedAvg (unprotected)'), ('median', 'Coordinate-wise median'),
+            ('trimmed', 'Trimmed mean'), ('krum', 'Krum'), ('normclip', 'Norm clipping$^{*}$'),
+            ('foolsgold', 'FoolsGold'), ('tbfl', 'TBFL (identity gate)'),
+            ('tbfl-median', 'TBFL + median$^{*}$')]
+    cols = [(0, 0), (2, 0), (5, 0), (10, 0), (15, 0), (5, 1), (10, 1), (15, 1)]
+    val = np.full((len(rows), len(cols)), np.nan)
+    txt = [[''] * len(cols) for _ in rows]
+    out = {}
+    for i, (agg, _) in enumerate(rows):
+        for j, (S, div) in enumerate(cols):
+            c, mark = cell(agg, S, div), ''
+            if c is None and agg == 'tbfl' and div:
+                c, mark = cell(agg, S, 0), r'$^{\dagger}$'   # o filtro rejeita antes de ver o conteúdo
+            if c is None or (agg == 'tbfl-median' and S == 0):
+                txt[i][j] = '--'
+                continue
+            if agg == 'tbfl' and div and S == 15:
+                mark = r'$^{*}$'
+            val[i, j] = c['mean']
+            txt[i][j] = f"{c['mean']:.3f}{mark}\n$\\pm${c['sd']:.3f}"
+            out[f'{agg}_S{S}_div{div}'] = c
+    cmap = LinearSegmentedColormap.from_list('auc', [ORANGE, '#f6f5f1', BLUE])
+    norm = TwoSlopeNorm(vmin=0.4, vcenter=0.8, vmax=0.9)
+    fig, ax = plt.subplots(figsize=(TEXTWIDTH_IN, 2.75))
+    ax.grid(False)
+    masked = np.ma.masked_invalid(val)
+    cm = cmap.copy(); cm.set_bad('#ffffff')
+    im = ax.imshow(masked, cmap=cm, norm=norm, aspect='auto')
+    for i in range(len(rows)):
+        for j in range(len(cols)):
+            v = val[i, j]
+            dark = not np.isnan(v) and (v < 0.5 or v > 0.86)
+            ax.text(j, i, txt[i][j], ha='center', va='center', fontsize=5.8, linespacing=1.0,
+                    color='white' if dark else (INK2 if np.isnan(v) else INK))
+    ax.set_yticks(range(len(rows)), [r[1] for r in rows])
+    share = {0: '--', 2: '17%', 5: '33%', 10: '50%', 15: '60%'}
+    ax.set_xticks(range(len(cols)), ['' if S == 0 else f'{S}\n({share[S]})' for S, _ in cols])
+    ax.xaxis.tick_top()
+    ax.tick_params(length=0)
+    for sp in ax.spines.values():
+        sp.set_visible(False)
+    for x in (0.5, 4.5):
+        ax.axvline(x, color='white', lw=2.5)
+    for y in (5.5,):
+        ax.axhline(y, color='white', lw=2.5)
+    for x, lab in ((0, 'No\nattack'), (2.5, 'Identical Sybils, $S$ (share)'), (6, r'Adaptive Sybils ($\sigma=1$)')):
+        ax.text(x, -1.45, lab, ha='center', va='bottom', fontsize=7, color=INK)
+    cb = fig.colorbar(im, ax=ax, orientation='vertical', fraction=0.025, pad=0.015,
+                      ticks=[0.4, 0.5, 0.6, 0.7, 0.8, 0.9])
+    cb.outline.set_visible(False)
+    cb.ax.tick_params(labelsize=6, length=2)
+    cb.set_label('AUC-ROC at round 50', fontsize=7)
+    save(fig, 'heat_sybil')
+    return out
 
 
 if __name__ == '__main__':

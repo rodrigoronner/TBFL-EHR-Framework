@@ -62,6 +62,10 @@ LABEL = {'tbfl': 'TBFL (identity gate)', 'fedavg': 'FedAvg (unprotected)',
          'median': 'Coordinate-wise median', 'trimmed': 'Trimmed mean', 'krum': 'Krum',
          'foolsgold': 'FoolsGold'}
 BLUE, ORANGE, NEUTRAL = COLOR['tbfl'], COLOR['fedavg'], '#8a8984'
+FLIP = '#7c4dbd'
+FLIP_DEFS = ['fedavg', 'median', 'krum', 'normclip', 'foolsgold', 'tbfl']
+FLIP_SHORT = {'fedavg': 'Fed-\nAvg', 'median': 'Median', 'krum': 'Krum', 'normclip': 'Norm\nclip',
+              'foolsgold': 'Fools-\nGold', 'tbfl': 'TBFL'}
 
 GAS_PRICE_GWEI = {'Ethereum L1': 20, 'Arbitrum L2': 0.1}
 ETH_USD = 3000
@@ -84,8 +88,8 @@ def ms(x):
             'fmt': f'{np.mean(x):.3f} ± {sd:.3f}'}
 
 
-def load(agg, S, rounds=None, div=0):
-    tag = f'{agg}_S{S}' + (f'_div{div:g}' if div else '')
+def load(agg, S, rounds=None, div=0, suffix=''):
+    tag = f'{agg}_S{S}' + (f'_div{div:g}' if div else '') + suffix
     out = []
     for f in sorted(glob.glob(os.path.join(RES, f'{tag}_seed*.csv'))):
         if f.endswith(('_chain.csv', '_clients.csv')):
@@ -275,7 +279,7 @@ def main():
     rows, curves_s = [], {}
     for div in [0, 1]:
         for S in [2, 5, 10, 15]:
-            for agg in AGGS:
+            for agg in AGGS + ['normclip', 'tbfl-median']:
                 d = load(agg, S, rounds=50, div=div)
                 if d.empty:
                     continue
@@ -288,13 +292,50 @@ def main():
                              'recall': ms(f['recall']), 'fnr': ms(f['fnr']),
                              'rejected_per_round': float(f['n_rejected'].mean()),
                              'sybil_weight_share': share})
-                curves_s[(agg, S, div)] = d
+                if agg in AGGS:
+                    curves_s[(agg, S, div)] = d
     rep['sybil'] = rows
+
+    # Passo 2: filtro + mediana, corte por norma, variação de sigma e rótulos invertidos
+    def final_auc(agg, S, div=0, suffix=''):
+        d = load(agg, S, rounds=50, div=div, suffix=suffix)
+        return None if d.empty else {c: ms(d[d['round'] == 50][c]) for c in ['auc', 'auprc']}
+    rep['step2'] = {
+        'gate_median': {S: final_auc('tbfl-median', S) for S in [5, 10, 15]},
+        'normclip': {S: final_auc('normclip', S) for S in [0, 2, 5, 10, 15]},
+        'sigma': {f'{a}_s{dv:g}': final_auc(a, 10, div=dv)
+                  for a in ['median', 'krum', 'foolsgold'] for dv in [0, 0.1, 0.3, 1]},
+        'labelflip': {f'{a}_S{S}': final_auc(a, S, suffix='_flip')
+                      for a in ['fedavg', 'median', 'krum', 'foolsgold', 'normclip', 'tbfl']
+                      for S in [5, 10]},
+        'clean_r50': {a: final_auc(a, 0) for a in ['fedavg', 'median', 'trimmed', 'krum',
+                                                   'foolsgold', 'normclip']}}
+
+    # Parada antecipada: rodada escolhida pela AUC de validação versus a rodada final
+    es = load('fedavg', 0, rounds=100, suffix='_val0.1')
+    if not es.empty:
+        sel = es.loc[es.groupby('seed')['val_auc'].idxmax()]
+        fin = es[es['round'] == 100]
+        rep['early_stop'] = {
+            'selected_rounds': sel['round'].astype(int).tolist(),
+            'selected': {c: ms(sel[c]) for c in ['auc', 'auprc', 'brier', 'recall']},
+            'final': {c: ms(fin[c]) for c in ['auc', 'auprc', 'brier', 'recall']}}
+
+    # Tentativas de Sybils e falhas de clientes honestos no ledger durante o treino
+    chain = pd.concat([pd.read_csv(f).assign(run=os.path.basename(f))
+                       for f in glob.glob(os.path.join(RES, 'tbfl*_chain.csv'))])
+    att = chain[chain['kind'].str.startswith('sybil')]
+    hon = chain[chain['kind'] == 'submit']
+    rep['ledger_attempts'] = {
+        'runs_under_attack': int(att['run'].nunique()),
+        'sybil': att.groupby('kind')['accepted'].agg(['sum', 'size']).astype(int)
+        .to_dict('index'),
+        'honest_submit': {'failed': int((~hon['accepted']).sum()), 'total': int(len(hon))}}
     d = load('fedavg', 0, rounds=50)
     if not d.empty:
         f = d[d['round'] == 50]
         rep['fedavg_clean_r50'] = {c: ms(f[c]) for c in ['auc', 'auprc', 'recall', 'fnr']}
-    f = main_[(main_['seed'] < 3) & (main_['round'] == 50)]
+    f = main_[main_['round'] == 50]
     rep['tbfl_clean_r50'] = {c: ms(f[c]) for c in ['auc', 'auprc', 'recall', 'fnr']}
 
     present = [a for a in AGGS if any(k_[0] == a and k_[2] == 0 for k_ in curves_s)]
@@ -339,9 +380,22 @@ def main():
             save(fig, 'frac_b_adaptive')
             legend_strip([Patch(color=BLUE, label='Identical Sybils'),
                           Patch(color=ORANGE, label='Adaptive Sybils'),
+                          Patch(color=FLIP, label='Label-flipping Sybils'),
                           Patch(facecolor='white', edgecolor=INK2, label='33% Sybils (solid)'),
                           Patch(facecolor='white', edgecolor=INK2, hatch='////',
-                                label='50% Sybils (hatched)')], 'frac_legend', ncol=4)
+                                label='50% Sybils (hatched)')], 'frac_legend', ncol=5)
+        flip = {(a, S): load(a, S, rounds=50, suffix='_flip') for a in FLIP_DEFS for S in [5, 10]}
+        if all(not d.empty for d in flip.values()):
+            fig, ax = panel(W2, 1.75)
+            x = np.arange(len(FLIP_DEFS)); w = 0.36
+            for i, S in enumerate([5, 10]):
+                v = [flip[(a, S)][flip[(a, S)]['round'] == 50]['auc'].mean() for a in FLIP_DEFS]
+                ax.bar(x + (i - 0.5) * w, v, w, color=FLIP, hatch=None if S == 5 else '////',
+                       edgecolor='white', lw=0)
+            ax.set_xticks(x, [FLIP_SHORT[a] for a in FLIP_DEFS], fontsize=6.5)
+            ax.set_ylabel('AUC-ROC (round 50)'); ax.set_ylim(0, 1)
+            ax.grid(axis='x', visible=False)
+            save(fig, 'frac_d_labelflip')
         if ('foolsgold', 5, 0) in curves_s and ('foolsgold', 5, 1) in curves_s:
             fig, ax = panel(W2, 1.75)
             for dv, c, lab in [(0, BLUE, 'Identical Sybils'), (1, ORANGE, 'Adaptive Sybils')]:

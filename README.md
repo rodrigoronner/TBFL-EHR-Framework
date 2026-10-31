@@ -135,12 +135,29 @@ cd experiments && python verify_deployments.py
 
 ## How to cite
 
-The version that accompanies the PPNA manuscript is archived on Zenodo:
+If you use this work, please cite the paper:
 
-- **v2.1 (manuscript version):** [10.5281/zenodo.23836753](https://doi.org/10.5281/zenodo.23836753)
+> R. Tertulino, R. Almeida and L. Alencar. *Trustworthy Blockchain-based Federated Learning for Electronic Health Records: Identity-Gated Participation against Sybil Attacks.* arXiv:2602.02629, 2026. [https://arxiv.org/abs/2602.02629](https://arxiv.org/abs/2602.02629)
+
+```bibtex
+@misc{tertulino2026tbfl,
+  author        = {Tertulino, Rodrigo and Almeida, Ricardo and Alencar, Laercio},
+  title         = {Trustworthy Blockchain-based Federated Learning for Electronic Health Records: Identity-Gated Participation against Sybil Attacks},
+  year          = {2026},
+  eprint        = {2602.02629},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CR},
+  doi           = {10.48550/arXiv.2602.02629},
+  url           = {https://arxiv.org/abs/2602.02629}
+}
+```
+
+To cite the code and run logs themselves, use the Zenodo archive:
+
+- **v2.1 (version used in the current manuscript):** [10.5281/zenodo.23836753](https://doi.org/10.5281/zenodo.23836753)
 - **All versions (concept DOI, resolves to the latest release):** [10.5281/zenodo.23835125](https://doi.org/10.5281/zenodo.23835125)
 
-Citation metadata is in [`CITATION.cff`](CITATION.cff).
+Citation metadata is in [`CITATION.cff`](CITATION.cff); GitHub's "Cite this repository" button reads it.
 
 ## License
 

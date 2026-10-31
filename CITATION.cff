@@ -1,5 +1,5 @@
 cff-version: 1.2.0
-message: "If you use this software, please cite it as below."
+message: "If you use this work, please cite the paper below."
 title: "TBFL-EHR-Framework: identity-gated federated learning for electronic health records"
 authors:
   - family-names: Tertulino
@@ -13,3 +13,22 @@ authors:
     affiliation: "Federal Institute of Education, Science, and Technology of Rio Grande do Norte (IFRN)"
 license: MIT
 repository-code: "https://github.com/rodrigoronner/TBFL-EHR-Framework"
+doi: "10.5281/zenodo.23835125"
+preferred-citation:
+  type: article
+  title: "Trustworthy Blockchain-based Federated Learning for Electronic Health Records: Identity-Gated Participation against Sybil Attacks"
+  authors:
+    - family-names: Tertulino
+      given-names: Rodrigo
+    - family-names: Almeida
+      given-names: Ricardo
+    - family-names: Alencar
+      given-names: Laercio
+  year: 2026
+  journal: "arXiv preprint"
+  identifiers:
+    - type: other
+      value: "arXiv:2602.02629"
+      description: "arXiv identifier"
+  doi: "10.48550/arXiv.2602.02629"
+  url: "https://arxiv.org/abs/2602.02629"

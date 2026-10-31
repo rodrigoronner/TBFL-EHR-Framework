@@ -41,10 +41,12 @@ class Bench:
         try:
             rcpt = self.w3.eth.wait_for_transaction_receipt(fn.transact({'from': sender}))
             ok, gas = rcpt.status == 1, rcpt.gasUsed
-        except Exception:
+            reason = ''
+        except Exception as e:
             rcpt, ok, gas = None, False, 0  # revert na estimativa de gas: não minerada
+            reason = str(e)[:120]
         self.log.append({'contract': self.name, 'op': op, 'accepted': ok, 'gas': gas,
-                         'latency_s': time.perf_counter() - t0})
+                         'latency_s': time.perf_counter() - t0, 'reason': reason})
         self.last_rcpt = rcpt if ok else None
         return ok
 
@@ -69,8 +71,8 @@ class Bench:
                              'latency_s': np.nan})
 
 
-def sign_vc(w3, contract, issuer, subject, expires_at):
-    """Credencial EIP-712 HospitalCredential(subject, expiresAt), assinada pela conta `issuer`."""
+def sign_vc(w3, contract, issuer, subject, expires_at, issued_at):
+    """Credencial EIP-712 HospitalCredential(subject, expiresAt, issuedAt), assinada pela conta `issuer`."""
     typed = {
         'types': {
             'EIP712Domain': [{'name': 'name', 'type': 'string'},
@@ -78,11 +80,12 @@ def sign_vc(w3, contract, issuer, subject, expires_at):
                              {'name': 'chainId', 'type': 'uint256'},
                              {'name': 'verifyingContract', 'type': 'address'}],
             'HospitalCredential': [{'name': 'subject', 'type': 'address'},
-                                   {'name': 'expiresAt', 'type': 'uint256'}]},
+                                   {'name': 'expiresAt', 'type': 'uint256'},
+                                   {'name': 'issuedAt', 'type': 'uint256'}]},
         'primaryType': 'HospitalCredential',
         'domain': {'name': 'TBFL-FLRegistryZK', 'version': '1',
                    'chainId': w3.eth.chain_id, 'verifyingContract': contract.address},
-        'message': {'subject': subject, 'expiresAt': expires_at}}
+        'message': {'subject': subject, 'expiresAt': expires_at, 'issuedAt': issued_at}}
     r = w3.provider.make_request('eth_signTypedData_v4', [issuer, json.dumps(typed)])
     return bytes.fromhex(r['result'][2:])
 
@@ -122,21 +125,37 @@ def main():
     b = Bench(w3, 'FLRegistryZK', issuer, ctor_args=(issuer,))
     now = w3.eth.get_block('latest').timestamp
     exp = now + 365 * 24 * 3600
-    vcs = {wk: sign_vc(w3, b.c, issuer, wk, exp) for wk in workers}
+    vcs = {wk: sign_vc(w3, b.c, issuer, wk, exp, now) for wk in workers}
     for wk in workers:
-        b.send('authorize', b.c.functions.authorizeWorker(wk, exp, vcs[wk]), wk)
-    forged = sign_vc(w3, b.c, attacker, attacker, exp)
-    b.send('forged_vc', b.c.functions.authorizeWorker(attacker, exp, forged), attacker)
+        b.send('authorize', b.c.functions.authorizeWorker(wk, exp, now, vcs[wk]), wk)
+    forged = sign_vc(w3, b.c, attacker, attacker, exp, now)
+    b.send('forged_vc', b.c.functions.authorizeWorker(attacker, exp, now, forged), attacker)
     b.send('replayed_vc_other_subject',
-           b.c.functions.authorizeWorker(attacker, exp, vcs[workers[0]]), attacker)
-    expired = sign_vc(w3, b.c, issuer, attacker, now - 1)
-    b.send('expired_vc', b.c.functions.authorizeWorker(attacker, now - 1, expired), attacker)
+           b.c.functions.authorizeWorker(attacker, exp, now, vcs[workers[0]]), attacker)
+    expired = sign_vc(w3, b.c, issuer, attacker, now - 1, now - 2)
+    b.send('expired_vc', b.c.functions.authorizeWorker(attacker, now - 1, now - 2, expired),
+           attacker)
+    # Reenvio da mesma credencial (pública na cadeia) para o próprio sujeito: superada
+    b.send('replayed_vc_same_subject',
+           b.c.functions.authorizeWorker(workers[0], exp, now, vcs[workers[0]]), attacker)
     for _ in range(a.rounds):
         for wk in workers:
             b.send('submit', b.c.functions.submitUpdate(digest(rng)), wk)
         b.send('sybil_submit', b.c.functions.submitUpdate(digest(rng)), attacker)
     b.send('revoke', b.c.functions.revokeCredential(workers[-1]), issuer)
+    t_rev = w3.eth.get_block('latest').timestamp
     b.send('submit_after_revocation', b.c.functions.submitUpdate(digest(rng)), workers[-1])
+    # Reenviar a credencial antiga não pode desfazer a revogação
+    b.send('replayed_vc_after_revocation',
+           b.c.functions.authorizeWorker(workers[-1], exp, now, vcs[workers[-1]]), attacker)
+    b.send('submit_after_replay', b.c.functions.submitUpdate(digest(rng)), workers[-1])
+    # Só uma credencial emitida depois da revogação reabilita o sujeito. Um bloco novo garante
+    # que o relógio da cadeia passou do instante da revogação (a estimativa de gas usa o último)
+    w3.provider.make_request('evm_mine', [])
+    renewed = sign_vc(w3, b.c, issuer, workers[-1], exp, t_rev + 1)
+    b.send('reissued_vc_after_revocation',
+           b.c.functions.authorizeWorker(workers[-1], exp, t_rev + 1, renewed), workers[-1])
+    b.send('submit_after_reissue', b.c.functions.submitUpdate(digest(rng)), workers[-1])
     b.binding_tests(workers[0], workers[1], rng)
     logs += b.log
 

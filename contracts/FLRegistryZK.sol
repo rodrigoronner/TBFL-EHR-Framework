@@ -19,10 +19,13 @@ interface IGroth16Verifier {
  *      occurred) -- see src/identity.py.
  *
  *   2. Verifiable Credentials: the Trusted Issuer signs an EIP-712 typed credential
- *      (subject, expiresAt) OFF-CHAIN with its private key. `authorizeWorker` recovers the
- *      signer on-chain via ecrecover; only a genuine Issuer signature is accepted. Credentials
- *      carry a real expiration and can be revoked -- neither existed in the plain-allowlist
- *      version of this contract.
+ *      (subject, expiresAt, issuedAt) OFF-CHAIN with its private key. `authorizeWorker`
+ *      recovers the signer on-chain via ecrecover; only a genuine Issuer signature is accepted.
+ *      Credentials carry a real expiration and can be revoked -- neither existed in the
+ *      plain-allowlist version of this contract. A credential is accepted only if it was
+ *      issued after the last credential accepted for, or the last revocation of, its subject,
+ *      so relaying an old (public) signature can neither undo a revocation nor roll back a
+ *      renewed expiry.
  *
  *   3. Zero-Knowledge selective disclosure: `submitUpdateZK` lets a credentialed participant
  *      prove Merkle-tree membership in the VC registry (via a Groth16 proof over
@@ -47,6 +50,8 @@ contract FLRegistryZK {
     // --- Verifiable Credential registry (named-identity path) ---
     mapping(address => uint256) public credentialExpiry; // 0 => never issued
     mapping(address => bool) public revoked;
+    // Credentials issued at or before this time are void for the subject (anti-replay)
+    mapping(address => uint256) public minIssuedAt;
 
     // --- ZK Merkle-membership registry (anonymous path) ---
     bytes32 public credentialRoot;                   // Merkle root of Poseidon(identitySecret) leaves
@@ -62,7 +67,7 @@ contract FLRegistryZK {
 
     // EIP-712 domain separator + typehash for the "HospitalCredential" Verifiable Credential
     bytes32 private constant CREDENTIAL_TYPEHASH =
-        keccak256("HospitalCredential(address subject,uint256 expiresAt)");
+        keccak256("HospitalCredential(address subject,uint256 expiresAt,uint256 issuedAt)");
     bytes32 private immutable DOMAIN_SEPARATOR;
 
     constructor(address verifierAddress) {
@@ -83,28 +88,34 @@ contract FLRegistryZK {
 
     /**
      * @dev Authorizes `worker` using a Verifiable Credential: an EIP-712 signature produced
-     * OFF-CHAIN by the Trusted Issuer's private key over (subject, expiresAt). Anyone may
+     * OFF-CHAIN by the Trusted Issuer's private key over (subject, expiresAt, issuedAt). Anyone may
      * relay this transaction (e.g. the hospital itself, after receiving the signed VC from
      * the Issuer's wallet) -- what is checked is that the signature recovers to
      * `trustedIssuer`, exactly as a W3C Verifiable Credential's proof is verified.
      */
-    function authorizeWorker(address worker, uint256 expiresAt, bytes calldata signature) external {
-        bytes32 structHash = keccak256(abi.encode(CREDENTIAL_TYPEHASH, worker, expiresAt));
+    function authorizeWorker(address worker, uint256 expiresAt, uint256 issuedAt,
+                             bytes calldata signature) external {
+        bytes32 structHash = keccak256(abi.encode(CREDENTIAL_TYPEHASH, worker, expiresAt, issuedAt));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash));
         address signer = _recoverSigner(digest, signature);
 
         require(signer == trustedIssuer, "Invalid VC: signature is not from the Trusted Issuer");
         require(expiresAt > block.timestamp, "Invalid VC: credential is already expired");
+        require(issuedAt <= block.timestamp, "Invalid VC: issued in the future");
+        require(issuedAt > minIssuedAt[worker], "Invalid VC: superseded or revoked credential");
 
+        minIssuedAt[worker] = issuedAt;
         credentialExpiry[worker] = expiresAt;
         revoked[worker] = false;
         emit WorkerAuthorized(worker, expiresAt);
     }
 
-    /// @dev Only the Trusted Issuer can revoke a previously issued credential.
+    /// @dev Only the Trusted Issuer can revoke. Revocation voids every credential issued to
+    /// `worker` up to now; only a credential issued afterwards can re-authorize it.
     function revokeCredential(address worker) external {
         require(msg.sender == trustedIssuer, "Only the Trusted Issuer can revoke credentials");
         revoked[worker] = true;
+        if (block.timestamp > minIssuedAt[worker]) minIssuedAt[worker] = block.timestamp;
         emit WorkerRevoked(worker);
     }
 

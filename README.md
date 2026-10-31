@@ -76,10 +76,12 @@ The allowlist (`FLRegistry`) and signed-credential (`FLRegistryZK`) registries w
 
 | Network | Registry | Contract |
 |---|---|---|
-| Ethereum Sepolia | `FLRegistry` | [`0xC15a68e0605614Ff4a7C7EEb4f81274A170BBf11`](https://sepolia.etherscan.io/address/0xC15a68e0605614Ff4a7C7EEb4f81274A170BBf11) |
-| Ethereum Sepolia | `FLRegistryZK` | [`0xCec575aF1b32b6311f36BF17dE60f87dEA843058`](https://sepolia.etherscan.io/address/0xCec575aF1b32b6311f36BF17dE60f87dEA843058) |
-| Arbitrum Sepolia | `FLRegistry` | [`0x8c1f1B80f30f0f0C4EA1CAf72A59916e8b144f1f`](https://sepolia.arbiscan.io/address/0x8c1f1B80f30f0f0C4EA1CAf72A59916e8b144f1f) |
-| Arbitrum Sepolia | `FLRegistryZK` | [`0xC15a68e0605614Ff4a7C7EEb4f81274A170BBf11`](https://sepolia.arbiscan.io/address/0xC15a68e0605614Ff4a7C7EEb4f81274A170BBf11) |
+| Ethereum Sepolia | `FLRegistry` | [`0x54e698E73F26e18B17071BA471Cc6a11B6d5D57f`](https://sepolia.etherscan.io/address/0x54e698E73F26e18B17071BA471Cc6a11B6d5D57f) |
+| Ethereum Sepolia | `FLRegistryZK` | [`0x2730b56bc97560D342a2032F6C4239c56eB5667F`](https://sepolia.etherscan.io/address/0x2730b56bc97560D342a2032F6C4239c56eB5667F) |
+| Arbitrum Sepolia | `FLRegistry` | [`0xc4Ed367EEA1a699435F8351039b21e154b728476`](https://sepolia.arbiscan.io/address/0xc4Ed367EEA1a699435F8351039b21e154b728476) |
+| Arbitrum Sepolia | `FLRegistryZK` | [`0x759F85E519Cb6ABcFCe14A4833ef8C071490857E`](https://sepolia.arbiscan.io/address/0x759F85E519Cb6ABcFCe14A4833ef8C071490857E) |
+
+**Superseded deployments.** An earlier `FLRegistryZK` (Sepolia `0xCec575aF1b32b6311f36BF17dE60f87dEA843058`, Arbitrum Sepolia `0xC15a68e0605614Ff4a7C7EEb4f81274A170BBf11`) signed credentials over (subject, expiresAt) only, so anyone could re-relay a public credential after its revocation and re-authorise the revoked address. The current version signs an issuance time as well and accepts a credential only if it was issued after the last accepted credential and the last revocation of its subject; the benchmark now tests this case (`replayed_vc_after_revocation`). Do not use the superseded addresses.
 
 To check that these contracts were created from the code in this repository, without relying on an explorer:
 

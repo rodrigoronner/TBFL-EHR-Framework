@@ -89,10 +89,11 @@ def main():
     print("PHASE 1: Onboarding & Credential Issuance (named DID/VC path)")
     print("=" * 70)
     print(f"🆔 Hospital A DID: {to_did(hospital_a)}")
-    vc = issue_credential(w3, issuer, w3.eth.chain_id, deployment["registry"], hospital_a, validity_seconds=3600)
+    vc = issue_credential(w3, issuer, w3.eth.chain_id, deployment["registry"], hospital_a, validity_seconds=3600,
+                          now=w3.eth.get_block("latest").timestamp)
     print(f"🏛️  Issuer signed a Verifiable Credential (EIP-712) for Hospital A, expiring at {vc['expiresAt']}")
 
-    tx = registry.functions.authorizeWorker(vc["subject"], vc["expiresAt"], bytes.fromhex(vc["signature"][2:])).transact({"from": issuer})
+    tx = registry.functions.authorizeWorker(vc["subject"], vc["expiresAt"], vc["issuedAt"], bytes.fromhex(vc["signature"][2:])).transact({"from": issuer})
     w3.eth.wait_for_transaction_receipt(tx)
     print(f"   ✅ On-chain ecrecover confirmed the Issuer's signature. isAuthorized={registry.functions.isAuthorized(hospital_a).call()}")
     print(f"⚠️  Attacker {to_did(attacker)} was never issued a credential. isAuthorized={registry.functions.isAuthorized(attacker).call()}")

@@ -104,7 +104,7 @@ class Net:
         return self.w3.eth.contract(address=rcpt.contractAddress, abi=art['abi'])
 
 
-def credential(net, contract, issuer, subject, expires_at):
+def credential(net, contract, issuer, subject, expires_at, issued_at):
     typed = {
         'types': {
             'EIP712Domain': [{'name': 'name', 'type': 'string'},
@@ -112,11 +112,12 @@ def credential(net, contract, issuer, subject, expires_at):
                              {'name': 'chainId', 'type': 'uint256'},
                              {'name': 'verifyingContract', 'type': 'address'}],
             'HospitalCredential': [{'name': 'subject', 'type': 'address'},
-                                   {'name': 'expiresAt', 'type': 'uint256'}]},
+                                   {'name': 'expiresAt', 'type': 'uint256'},
+                                   {'name': 'issuedAt', 'type': 'uint256'}]},
         'primaryType': 'HospitalCredential',
         'domain': {'name': 'TBFL-FLRegistryZK', 'version': '1', 'chainId': net.chain_id,
                    'verifyingContract': contract.address},
-        'message': {'subject': subject, 'expiresAt': expires_at}}
+        'message': {'subject': subject, 'expiresAt': expires_at, 'issuedAt': issued_at}}
     return Account.sign_typed_data(issuer.key, full_message=typed).signature
 
 
@@ -188,29 +189,49 @@ def main():
     # Credencial assinada: cada cliente retransmite a própria VC; casos de ataque de G2
     now = net.w3.eth.get_block('latest')['timestamp']
     exp = now + 365 * 24 * 3600
+    vcs = {}
     for wk in workers:
-        vc = credential(net, zk, issuer, wk.address, exp)
-        net.run(wk, tx(zk.functions.authorizeWorker(wk.address, exp, vc), wk), 'authorize',
-                'FLRegistryZK')
-    forged = credential(net, zk, attacker, attacker.address, exp)
-    net.run(attacker, tx(zk.functions.authorizeWorker(attacker.address, exp, forged), attacker),
-            'forged_vc', 'FLRegistryZK')
-    replay = credential(net, zk, issuer, workers[0].address, exp)
-    net.run(attacker, tx(zk.functions.authorizeWorker(attacker.address, exp, replay), attacker),
-            'replayed_vc_other_subject', 'FLRegistryZK')
-    expired = credential(net, zk, issuer, attacker.address, now - 1)
-    net.run(attacker, tx(zk.functions.authorizeWorker(attacker.address, now - 1, expired),
+        vcs[wk.address] = credential(net, zk, issuer, wk.address, exp, now)
+        net.run(wk, tx(zk.functions.authorizeWorker(wk.address, exp, now, vcs[wk.address]), wk),
+                'authorize', 'FLRegistryZK')
+    forged = credential(net, zk, attacker, attacker.address, exp, now)
+    net.run(attacker, tx(zk.functions.authorizeWorker(attacker.address, exp, now, forged),
+                         attacker), 'forged_vc', 'FLRegistryZK')
+    w0 = workers[0].address
+    net.run(attacker, tx(zk.functions.authorizeWorker(attacker.address, exp, now, vcs[w0]),
+                         attacker), 'replayed_vc_other_subject', 'FLRegistryZK')
+    expired = credential(net, zk, issuer, attacker.address, now - 1, now - 2)
+    net.run(attacker, tx(zk.functions.authorizeWorker(attacker.address, now - 1, now - 2, expired),
                          attacker), 'expired_vc', 'FLRegistryZK')
+    net.run(attacker, tx(zk.functions.authorizeWorker(w0, exp, now, vcs[w0]), attacker),
+            'replayed_vc_same_subject', 'FLRegistryZK')
     net.run(attacker, tx(zk.functions.submitUpdate('00' * 32), attacker), 'sybil_submit',
             'FLRegistryZK')
 
     per_round = rounds(net, allow, 'FLRegistry', workers, a.rounds, rng)
     per_round += rounds(net, zk, 'FLRegistryZK', workers, a.rounds, rng)
 
-    net.run(issuer, tx(zk.functions.revokeCredential(workers[-1].address), issuer), 'revoke',
-            'FLRegistryZK')
+    wl = workers[-1].address
+    rcpt = net.run(issuer, tx(zk.functions.revokeCredential(wl), issuer), 'revoke', 'FLRegistryZK')
+    t_rev = net.w3.eth.get_block(rcpt.blockNumber)['timestamp']
     net.run(workers[-1], tx(zk.functions.submitUpdate('00' * 32), workers[-1]),
             'submit_after_revocation', 'FLRegistryZK')
+    # Reenviar a credencial antiga (pública na cadeia) não pode desfazer a revogação
+    net.run(attacker, tx(zk.functions.authorizeWorker(wl, exp, now, vcs[wl]), attacker),
+            'replayed_vc_after_revocation', 'FLRegistryZK')
+    net.run(workers[-1], tx(zk.functions.submitUpdate('00' * 32), workers[-1]),
+            'submit_after_replay', 'FLRegistryZK')
+    # Só uma credencial emitida depois da revogação reabilita o sujeito; espera o relógio da
+    # cadeia passar do instante da revogação, porque a estimativa usa o último bloco
+    while net.w3.eth.get_block('latest')['timestamp'] <= t_rev + 1:
+        if net.chain_id == 31337:          # nó Hardhat local só mina quando há transação
+            net.w3.provider.make_request('evm_mine', [])
+        time.sleep(1)
+    renewed = credential(net, zk, issuer, wl, exp, t_rev + 1)
+    net.run(workers[-1], tx(zk.functions.authorizeWorker(wl, exp, t_rev + 1, renewed),
+                            workers[-1]), 'reissued_vc_after_revocation', 'FLRegistryZK')
+    net.run(workers[-1], tx(zk.functions.submitUpdate('00' * 32), workers[-1]),
+            'submit_after_reissue', 'FLRegistryZK')
 
     os.makedirs(a.out, exist_ok=True)
     df = pd.DataFrame(net.log)

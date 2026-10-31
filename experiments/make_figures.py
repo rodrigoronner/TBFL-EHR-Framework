@@ -63,8 +63,8 @@ LABEL = {'tbfl': 'TBFL (identity gate)', 'fedavg': 'FedAvg (unprotected)',
          'foolsgold': 'FoolsGold'}
 BLUE, ORANGE, NEUTRAL = COLOR['tbfl'], COLOR['fedavg'], '#8a8984'
 FLIP = '#7c4dbd'
-FLIP_DEFS = ['fedavg', 'median', 'krum', 'normclip', 'foolsgold', 'tbfl']
-FLIP_SHORT = {'fedavg': 'Fed-\nAvg', 'median': 'Median', 'krum': 'Krum', 'normclip': 'Norm\nclip',
+FLIP_DEFS = ['fedavg', 'median', 'trimmed', 'krum', 'normclip', 'foolsgold', 'tbfl']
+FLIP_SHORT = {'fedavg': 'Fed-\nAvg', 'median': 'Median', 'trimmed': 'Trim.\nmean', 'krum': 'Krum', 'normclip': 'Norm\nclip',
               'foolsgold': 'Fools-\nGold', 'tbfl': 'TBFL'}
 
 GAS_PRICE_GWEI = {'Ethereum L1': 20, 'Arbitrum L2': 0.1}
@@ -306,10 +306,15 @@ def main():
         'sigma': {f'{a}_s{dv:g}': final_auc(a, 10, div=dv)
                   for a in ['median', 'krum', 'foolsgold'] for dv in [0, 0.1, 0.3, 1]},
         'labelflip': {f'{a}_S{S}': final_auc(a, S, suffix='_flip')
-                      for a in ['fedavg', 'median', 'krum', 'foolsgold', 'normclip', 'tbfl']
+                      for a in ['fedavg', 'median', 'trimmed', 'krum', 'foolsgold', 'normclip', 'tbfl']
                       for S in [5, 10]},
         'clean_r50': {a: final_auc(a, 0) for a in ['fedavg', 'median', 'trimmed', 'krum',
-                                                   'foolsgold', 'normclip']}}
+                                                   'foolsgold', 'normclip']},
+        # Revisão 2: gate com S=15 nos ataques adaptativo e de rótulos invertidos; insiders
+        'gate_S15': {'adaptive': final_auc('tbfl', 15, div=1),
+                     'labelflip': final_auc('tbfl', 15, suffix='_flip')},
+        'insiders': {f'{g}_ins{k}': final_auc(g, 0, suffix=f'_ins{k}')
+                     for g in ['tbfl', 'tbfl-median'] for k in [1, 2]}}
 
     # Parada antecipada: rodada escolhida pela AUC de validação versus a rodada final
     es = load('fedavg', 0, rounds=100, suffix='_val0.1')
@@ -456,8 +461,10 @@ def main():
     save(fig, 'cost_b_cumulative')
     fig, ax = panel()
     vals = [tt.mean(), ct.mean()]
-    ax.bar([0, 1], vals, color=[BLUE, ORANGE], width=0.6)
-    ax.set_yscale('log'); ax.set_xticks([0, 1], ['Local\ntraining', 'On-chain\ncommitment'])
+    # Pontos, não barras: em escala log o comprimento de uma barra não é proporcional ao valor
+    ax.scatter([0, 1], vals, color=[BLUE, ORANGE], s=28, zorder=3)
+    ax.set_yscale('log'); ax.set_xlim(-0.6, 1.6)
+    ax.set_xticks([0, 1], ['Local\ntraining', 'On-chain\ncommitment'])
     ax.set_ylabel('Time per client and round (s)'); ax.grid(axis='x', visible=False)
     for i, v in enumerate(vals):
         ax.text(i, v * 1.3, f'{v:.2f} s' if v >= 1 else f'{v * 1e3:.0f} ms', ha='center',

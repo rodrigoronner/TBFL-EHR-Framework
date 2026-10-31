@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "TBFL-EHR-Framework: identity-gated federated learning for electronic health records"
+authors:
+  - family-names: Tertulino
+    given-names: Rodrigo
+    affiliation: "Federal Institute of Education, Science, and Technology of Rio Grande do Norte (IFRN)"
+  - family-names: Almeida
+    given-names: Ricardo
+    affiliation: "Federal Institute of Education, Science, and Technology of Rio Grande do Norte (IFRN)"
+  - family-names: Alencar
+    given-names: Laercio
+    affiliation: "Federal Institute of Education, Science, and Technology of Rio Grande do Norte (IFRN)"
+license: MIT
+repository-code: "https://github.com/rodrigoronner/TBFL-EHR-Framework"

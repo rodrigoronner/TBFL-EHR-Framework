@@ -49,6 +49,8 @@ def main():
                     help='regra de agregação aplicada às atualizações admitidas pelo gate (tbfl)')
     ap.add_argument('--sybil_mode', default='random', choices=['random', 'labelflip'],
                     help='random = vetor N(0, I); labelflip = treino com rótulos invertidos')
+    ap.add_argument('--insiders', type=int, default=0,
+                    help='hospitais credenciados (os maiores) que treinam com rótulos invertidos')
     ap.add_argument('--sybil_samples', type=int, default=5000,
                     help='amostras de treino de cada Sybil no modo labelflip')
     ap.add_argument('--sybils', type=int, default=0)
@@ -109,7 +111,10 @@ def main():
     rule = f'-{a.rule}' if a.agg == 'tbfl' and a.rule != 'fedavg' else ''
     mode = '_flip' if a.sybil_mode == 'labelflip' else ''
     val = f'_val{a.val_frac:g}' if a.val_frac > 0 else ''
-    tag = f'{a.agg}{rule}_S{a.sybils}{div}{mode}{val}_seed{a.seed}'
+    ins = f'_ins{a.insiders}' if a.insiders > 0 else ''
+    tag = f'{a.agg}{rule}_S{a.sybils}{div}{mode}{ins}{val}_seed{a.seed}'
+    # Insiders: os maiores clientes honestos, credenciados, que envenenam a própria atualização
+    insiders = set(sorted(range(n_honest), key=lambda k: -sizes[k])[:a.insiders])
     fg_history = {}
     os.makedirs(a.out, exist_ok=True)
     history, client_hist = [], []
@@ -121,7 +126,8 @@ def main():
             local = MLP(len(names))
             set_flat(local, global_flat)
             t0 = time.perf_counter()
-            w = train_fedprox(local, c['Xt'], c['yt'], global_flat, args, gen)
+            y = 1 - c['yt'] if k in insiders and r >= a.attack_start else c['yt']
+            w = train_fedprox(local, c['Xt'], y, global_flat, args, gen)
             train_t.append(time.perf_counter() - t0)
             if chain is not None:
                 t1 = time.perf_counter()

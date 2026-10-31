@@ -1700,6 +1700,39 @@
    },
    "rejected_per_round": 0.0,
    "sybil_weight_share": 0.9113081929017921
+  },
+  {
+   "div": 1,
+   "sybils": 15,
+   "share": 0.6,
+   "agg": "tbfl",
+   "n": 3,
+   "auc": {
+    "mean": 0.8695892658299882,
+    "sd": 0.03861320764604745,
+    "n": 3,
+    "fmt": "0.870 \u00b1 0.039"
+   },
+   "auprc": {
+    "mean": 0.16575224010058745,
+    "sd": 0.06274662289268092,
+    "n": 3,
+    "fmt": "0.166 \u00b1 0.063"
+   },
+   "recall": {
+    "mean": 0.622094174715481,
+    "sd": 0.2905327963011179,
+    "n": 3,
+    "fmt": "0.622 \u00b1 0.291"
+   },
+   "fnr": {
+    "mean": 0.37790582528451905,
+    "sd": 0.29053279630111795,
+    "n": 3,
+    "fmt": "0.378 \u00b1 0.291"
+   },
+   "rejected_per_round": 15.0,
+   "sybil_weight_share": 0.0
   }
  ],
  "step2": {
@@ -2046,6 +2079,34 @@
      "fmt": "0.012 \u00b1 0.000"
     }
    },
+   "trimmed_S5": {
+    "auc": {
+     "mean": 0.8788352601916212,
+     "sd": 0.005409045992542818,
+     "n": 3,
+     "fmt": "0.879 \u00b1 0.005"
+    },
+    "auprc": {
+     "mean": 0.1705396581240044,
+     "sd": 0.013926135542543277,
+     "n": 3,
+     "fmt": "0.171 \u00b1 0.014"
+    }
+   },
+   "trimmed_S10": {
+    "auc": {
+     "mean": 0.1910286464410397,
+     "sd": 0.046154376598188114,
+     "n": 3,
+     "fmt": "0.191 \u00b1 0.046"
+    },
+    "auprc": {
+     "mean": 0.012247059187853368,
+     "sd": 0.0005488391218600769,
+     "n": 3,
+     "fmt": "0.012 \u00b1 0.001"
+    }
+   },
    "krum_S5": {
     "auc": {
      "mean": 0.8885016724394222,
@@ -2244,6 +2305,94 @@
      "fmt": "0.169 \u00b1 0.066"
     }
    }
+  },
+  "gate_S15": {
+   "adaptive": {
+    "auc": {
+     "mean": 0.8695892658299882,
+     "sd": 0.03861320764604745,
+     "n": 3,
+     "fmt": "0.870 \u00b1 0.039"
+    },
+    "auprc": {
+     "mean": 0.16575224010058745,
+     "sd": 0.06274662289268092,
+     "n": 3,
+     "fmt": "0.166 \u00b1 0.063"
+    }
+   },
+   "labelflip": {
+    "auc": {
+     "mean": 0.8694387942548398,
+     "sd": 0.037872216125920115,
+     "n": 3,
+     "fmt": "0.869 \u00b1 0.038"
+    },
+    "auprc": {
+     "mean": 0.16584998285647282,
+     "sd": 0.06210807125762483,
+     "n": 3,
+     "fmt": "0.166 \u00b1 0.062"
+    }
+   }
+  },
+  "insiders": {
+   "tbfl_ins1": {
+    "auc": {
+     "mean": 0.7464809630830493,
+     "sd": 0.23126130384223562,
+     "n": 3,
+     "fmt": "0.746 \u00b1 0.231"
+    },
+    "auprc": {
+     "mean": 0.10296673986561876,
+     "sd": 0.07798709649700862,
+     "n": 3,
+     "fmt": "0.103 \u00b1 0.078"
+    }
+   },
+   "tbfl_ins2": {
+    "auc": {
+     "mean": 0.41098343834991935,
+     "sd": 0.3455831318201604,
+     "n": 3,
+     "fmt": "0.411 \u00b1 0.346"
+    },
+    "auprc": {
+     "mean": 0.03094954951124206,
+     "sd": 0.03192383646271808,
+     "n": 3,
+     "fmt": "0.031 \u00b1 0.032"
+    }
+   },
+   "tbfl-median_ins1": {
+    "auc": {
+     "mean": 0.894453352134998,
+     "sd": 0.0021689524645900123,
+     "n": 3,
+     "fmt": "0.894 \u00b1 0.002"
+    },
+    "auprc": {
+     "mean": 0.20507547559346107,
+     "sd": 0.0016333319044016575,
+     "n": 3,
+     "fmt": "0.205 \u00b1 0.002"
+    }
+   },
+   "tbfl-median_ins2": {
+    "auc": {
+     "mean": 0.8932102592672093,
+     "sd": 0.0006995103272079442,
+     "n": 3,
+     "fmt": "0.893 \u00b1 0.001"
+    },
+    "auprc": {
+     "mean": 0.19953842495088162,
+     "sd": 0.005944708330054315,
+     "n": 3,
+     "fmt": "0.200 \u00b1 0.006"
+    }
+   }
   }
  },
  "early_stop": {
@@ -2308,20 +2457,20 @@
   }
  },
  "ledger_attempts": {
-  "runs_under_attack": 35,
+  "runs_under_attack": 41,
   "sybil": {
    "sybil_authorize": {
     "sum": 0,
-    "size": 295
+    "size": 385
    },
    "sybil_submit": {
     "sum": 0,
-    "size": 12095
+    "size": 15785
    }
   },
   "honest_submit": {
    "failed": 3,
-   "total": 22500
+   "total": 31500
   }
  },
  "fedavg_clean_r50": {
@@ -2430,7 +2579,7 @@
    "gas_mean": 46330.6,
    "gas_median": 46333.0,
    "gas_max": 46333,
-   "latency_ms": 9.3
+   "latency_ms": 5.9
   },
   {
    "contract": "FLRegistry",
@@ -2450,7 +2599,7 @@
    "gas_mean": 47225.7,
    "gas_median": 46873.0,
    "gas_max": 117765,
-   "latency_ms": 12.0
+   "latency_ms": 5.2
   },
   {
    "contract": "FLRegistry",
@@ -2460,7 +2609,7 @@
    "gas_mean": 0.0,
    "gas_median": 0.0,
    "gas_max": 0,
-   "latency_ms": 15.2
+   "latency_ms": 4.0
   },
   {
    "contract": "FLRegistry",
@@ -2470,7 +2619,7 @@
    "gas_mean": 0.0,
    "gas_median": 0.0,
    "gas_max": 0,
-   "latency_ms": 7.1
+   "latency_ms": 3.0
   },
   {
    "contract": "FLRegistry",
@@ -2510,7 +2659,7 @@
    "gas_mean": 47491.6,
    "gas_median": 47494.0,
    "gas_max": 47494,
-   "latency_ms": 10.6
+   "latency_ms": 5.0
   },
   {
    "contract": "FLRegistryEvents",
@@ -2530,7 +2679,7 @@
    "gas_mean": 47608.7,
    "gas_median": 47256.0,
    "gas_max": 118148,
-   "latency_ms": 11.1
+   "latency_ms": 6.0
   },
   {
    "contract": "FLRegistryEvents",
@@ -2540,7 +2689,7 @@
    "gas_mean": 0.0,
    "gas_median": 0.0,
    "gas_max": 0,
-   "latency_ms": 5.9
+   "latency_ms": 3.1
   },
   {
    "contract": "FLRegistryEvents",
@@ -2550,7 +2699,7 @@
    "gas_mean": 0.0,
    "gas_median": 0.0,
    "gas_max": 0,
-   "latency_ms": 6.3
+   "latency_ms": 3.4
   },
   {
    "contract": "FLRegistryEvents",
@@ -2587,19 +2736,19 @@
    "op": "authorize",
    "n": 10,
    "accepted": 10,
-   "gas_mean": 57372.0,
-   "gas_median": 57372.0,
-   "gas_max": 57378,
-   "latency_ms": 10.3
+   "gas_mean": 80131.6,
+   "gas_median": 80134.0,
+   "gas_max": 80134,
+   "latency_ms": 6.4
   },
   {
    "contract": "FLRegistryZK",
    "op": "deploy",
    "n": 1,
    "accepted": 1,
-   "gas_mean": 1764919.0,
-   "gas_median": 1764919.0,
-   "gas_max": 1764919,
+   "gas_mean": 1935532.0,
+   "gas_median": 1935532.0,
+   "gas_max": 1935532,
    "latency_ms": NaN
   },
   {
@@ -2610,7 +2759,7 @@
    "gas_mean": 0.0,
    "gas_median": 0.0,
    "gas_max": 0,
-   "latency_ms": 5.4
+   "latency_ms": 3.3
   },
   {
    "contract": "FLRegistryZK",
@@ -2620,7 +2769,27 @@
    "gas_mean": 0.0,
    "gas_median": 0.0,
    "gas_max": 0,
-   "latency_ms": 6.0
+   "latency_ms": 3.5
+  },
+  {
+   "contract": "FLRegistryZK",
+   "op": "reissued_vc_after_revocation",
+   "n": 1,
+   "accepted": 1,
+   "gas_mean": 41122.0,
+   "gas_median": 41122.0,
+   "gas_max": 41122,
+   "latency_ms": 5.9
+  },
+  {
+   "contract": "FLRegistryZK",
+   "op": "replayed_vc_after_revocation",
+   "n": 1,
+   "accepted": 0,
+   "gas_mean": 0.0,
+   "gas_median": 0.0,
+   "gas_max": 0,
+   "latency_ms": 3.1
   },
   {
    "contract": "FLRegistryZK",
@@ -2630,17 +2799,27 @@
    "gas_mean": 0.0,
    "gas_median": 0.0,
    "gas_max": 0,
-   "latency_ms": 5.8
+   "latency_ms": 3.9
+  },
+  {
+   "contract": "FLRegistryZK",
+   "op": "replayed_vc_same_subject",
+   "n": 1,
+   "accepted": 0,
+   "gas_mean": 0.0,
+   "gas_median": 0.0,
+   "gas_max": 0,
+   "latency_ms": 3.2
   },
   {
    "contract": "FLRegistryZK",
    "op": "revoke",
    "n": 1,
    "accepted": 1,
-   "gas_mean": 47483.0,
-   "gas_median": 47483.0,
-   "gas_max": 47483,
-   "latency_ms": 8.3
+   "gas_mean": 52724.0,
+   "gas_median": 52724.0,
+   "gas_max": 52724,
+   "latency_ms": 5.8
   },
   {
    "contract": "FLRegistryZK",
@@ -2650,7 +2829,27 @@
    "gas_mean": 49221.7,
    "gas_median": 48869.0,
    "gas_max": 119761,
-   "latency_ms": 8.8
+   "latency_ms": 5.4
+  },
+  {
+   "contract": "FLRegistryZK",
+   "op": "submit_after_reissue",
+   "n": 1,
+   "accepted": 1,
+   "gas_mean": 48869.0,
+   "gas_median": 48869.0,
+   "gas_max": 48869,
+   "latency_ms": 5.0
+  },
+  {
+   "contract": "FLRegistryZK",
+   "op": "submit_after_replay",
+   "n": 1,
+   "accepted": 0,
+   "gas_mean": 0.0,
+   "gas_median": 0.0,
+   "gas_max": 0,
+   "latency_ms": 3.0
   },
   {
    "contract": "FLRegistryZK",
@@ -2660,7 +2859,7 @@
    "gas_mean": 0.0,
    "gas_median": 0.0,
    "gas_max": 0,
-   "latency_ms": 5.2
+   "latency_ms": 3.1
   },
   {
    "contract": "FLRegistryZK",
@@ -2670,7 +2869,7 @@
    "gas_mean": 0.0,
    "gas_median": 0.0,
    "gas_max": 0,
-   "latency_ms": 5.3
+   "latency_ms": 3.2
   },
   {
    "contract": "FLRegistryZK",

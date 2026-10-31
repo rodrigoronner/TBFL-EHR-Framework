@@ -1,0 +1,5 @@
+[tbfl-median_S0_ins2_seed1] R10: AUC=0.8977 AUPRC=0.2086 Rec=0.904 Prec=0.063 agg=10
+[tbfl-median_S0_ins2_seed1] R20: AUC=0.8941 AUPRC=0.2024 Rec=0.896 Prec=0.065 agg=10
+[tbfl-median_S0_ins2_seed1] R30: AUC=0.8952 AUPRC=0.2078 Rec=0.903 Prec=0.062 agg=10
+[tbfl-median_S0_ins2_seed1] R40: AUC=0.8936 AUPRC=0.1995 Rec=0.892 Prec=0.064 agg=10
+[tbfl-median_S0_ins2_seed1] R50: AUC=0.8928 AUPRC=0.1968 Rec=0.881 Prec=0.068 agg=10

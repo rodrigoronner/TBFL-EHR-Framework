@@ -1,0 +1,12 @@
+{
+  "title": "TBFL-EHR-Framework: identity-gated federated learning for electronic health records (code, contracts and run logs)",
+  "upload_type": "software",
+  "description": "Code, smart contracts, cohort SQL and per-run logs for the paper \"Trustworthy Blockchain-based Federated Learning for Electronic Health Records: Identity-Gated Participation against Sybil Attacks\". MIMIC-IV data and models trained on it are not included (PhysioNet Credentialed Health Data Use Agreement).",
+  "creators": [
+    {"name": "Tertulino, Rodrigo", "affiliation": "Federal Institute of Education, Science, and Technology of Rio Grande do Norte (IFRN)"},
+    {"name": "Almeida, Ricardo", "affiliation": "Federal Institute of Education, Science, and Technology of Rio Grande do Norte (IFRN)"},
+    {"name": "Alencar, Laercio", "affiliation": "Federal Institute of Education, Science, and Technology of Rio Grande do Norte (IFRN)"}
+  ],
+  "license": "MIT",
+  "keywords": ["federated learning", "Sybil attack", "self-sovereign identity", "verifiable credentials", "smart contracts", "MIMIC-IV"]
+}

@@ -6,6 +6,8 @@ Executa a grade completa de experimentos (v2) em paralelo.
   Experimento 3 (`python run_all.py extra`): FoolsGold e ataque adaptativo, 50 rodadas, 3 seeds.
   Experimento 4 (`python run_all.py step2`): gate + mediana, varredura de sigma, norm clipping e
   Sybils com rótulos invertidos, 50 rodadas, 3 seeds.
+  Revisão 2 (`python run_all.py rev2`): média aparada com rótulos invertidos, gate com S=15
+  (adaptativo e rótulos invertidos) e insiders credenciados, 50 rodadas, 3 seeds.
 """
 import itertools
 import os
@@ -64,6 +66,20 @@ elif 'step2' in sys.argv[1:]:
             jobs.append(gated.pop(0) + R50)
         jobs.append(j + R50)
     jobs.extend(g + R50 for g in gated)
+elif 'rev2' in sys.argv[1:]:
+    # Resposta ao segundo parecer: média aparada com rótulos invertidos; gate com S=15 nos
+    # ataques adaptativo e de rótulos invertidos; insiders credenciados sob gate + FedAvg/mediana
+    for seed, s in itertools.product(range(3), [5, 10]):
+        jobs.append(['--agg', 'trimmed', '--sybils', str(s), '--seed', str(seed),
+                     '--sybil_mode', 'labelflip'] + R50)
+    for seed in range(3):
+        jobs.append(['--agg', 'tbfl', '--sybils', '15', '--seed', str(seed),
+                     '--sybil_diversity', '1'] + R50)
+        jobs.append(['--agg', 'tbfl', '--sybils', '15', '--seed', str(seed),
+                     '--sybil_mode', 'labelflip'] + R50)
+    for seed, k, rule in itertools.product(range(3), [1, 2], ['fedavg', 'median']):
+        jobs.append(['--agg', 'tbfl', '--rule', rule, '--sybils', '0', '--insiders', str(k),
+                     '--seed', str(seed)] + R50)
 elif 'extra' in sys.argv[1:]:
     # Experimento 3: FoolsGold sob Sybils idênticos e ataque adaptativo (Sybils diversificados)
     for seed, s in itertools.product(range(3), [2, 5, 10, 15]):

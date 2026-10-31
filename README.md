@@ -6,6 +6,25 @@ In TBFL, a hospital may contribute model updates to a federation only if it hold
 
 > **Version note.** Tag `v1.0-jsupercomputing` marks the code that accompanied the first manuscript version and arXiv:2602.02629v1. Several results reported in that version were produced by illustrative scripts rather than recorded runs. They are superseded by the experiments in `experiments/` and `results/`. Patient-level files derived from MIMIC-IV have been removed from the entire git history.
 
+## Em linguagem simples (português)
+
+**O problema.** Hospitais têm muitos dados de pacientes que ajudariam a treinar programas de computador para, por exemplo, prever quais pacientes internados correm mais risco de morrer. Esses dados não podem sair do hospital, por privacidade e por lei. Existe uma técnica que contorna isso, chamada **aprendizado federado**. Cada hospital treina o programa com os próprios dados, dentro de casa, e envia só o "aprendizado" resultante, nunca os prontuários. Um coordenador junta as contribuições de todos e monta um programa melhor do que qualquer hospital conseguiria sozinho. É como uma receita de bolo melhorada em conjunto: cada cozinheiro testa a receita na própria cozinha e manda só as sugestões de ajuste, sem revelar os ingredientes que tem na despensa.
+
+**A ameaça.** O coordenador conta cada contribuição como um "voto". Um impostor pode se passar por muitos hospitais ao mesmo tempo, criando dezenas de contas falsas. Se tiver mais contas falsas do que existem hospitais de verdade, ele ganha a "votação" e estraga o programa: o modelo passa a errar justamente nas previsões que importam. Isso se chama **ataque Sybil** (o nome vem de um livro sobre uma pessoa com múltiplas personalidades).
+
+**O que se fazia até agora.** As defesas tradicionais tentam identificar contribuições "estranhas" e descartá-las. Funcionam bem enquanto os impostores são minoria. Quando eles viram maioria, o "estranho" passa a ser o hospital honesto, e a defesa joga fora as contribuições erradas.
+
+**A nossa proposta.** Em vez de tentar adivinhar quem é impostor pelo que ele envia, verificamos **quem ele é** antes de deixá-lo participar. Hospitais são instituições licenciadas pelo governo. Então uma autoridade de confiança emite para cada hospital real uma espécie de **carteira de identidade digital**, impossível de falsificar. Um sistema público e à prova de adulteração (uma *blockchain*, a tecnologia por trás das criptomoedas) funciona como **porteiro**: só aceita contribuições de quem apresenta uma carteira válida. É como um condomínio que, em vez de vigiar o comportamento de cada visitante, simplesmente não deixa entrar quem não está na lista de moradores.
+
+**O que descobrimos.** Testamos tudo com dados reais e anonimizados de mais de meio milhão de internações em hospitais dos Estados Unidos, simulando dez hospitais.
+
+- Com impostores em maioria, as defesas tradicionais falharam, e o programa passou a acertar tanto quanto um palpite aleatório, ou menos.
+- Com o porteiro, nenhum impostor entrou, mesmo quando eram 60% dos participantes, e o programa manteve a qualidade de quando não havia ataque.
+- O porteiro não resolve tudo: se um hospital **verdadeiro** decidir sabotar, ele tem identidade válida e entra. Por isso a melhor solução é **combinar** as duas coisas. O porteiro barra os impostores, e a defesa tradicional cuida de algum hospital legítimo que se comporte mal. Juntas, resistiram aos dois tipos de ataque.
+- O custo de usar a blockchain é pequeno: acrescenta cerca de 1% ao tempo de treinamento. Na rede principal e mais conhecida, as taxas sairiam caras, mas em redes mais baratas, criadas para esse fim, ficam em centavos por rodada.
+
+**Em uma frase:** quando os participantes são instituições conhecidas, como hospitais, é mais eficaz verificar a identidade de quem entra do que tentar descobrir os impostores pelo que eles fazem, e o ideal é usar as duas proteções juntas.
+
 ## Repository layout
 
 ```
